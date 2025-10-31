@@ -12,12 +12,6 @@ import (
 	"real-time-chat/utils"
 )
 
-func enableCORS(w *http.ResponseWriter) {
-	(*w).Header().Set("Access-Control-Allow-Origin", "*")
-	(*w).Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
-	(*w).Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization")
-}
-
 func RespondWithError(w http.ResponseWriter, code int, message string) {
 	RespondWithJSON(w, code, models.ErrorResponse{Error: message})
 }
@@ -31,13 +25,6 @@ func RespondWithJSON(w http.ResponseWriter, code int, payload interface{}) {
 
 // Register handles user registration
 func Register(w http.ResponseWriter, r *http.Request) {
-	enableCORS(&w)
-	
-	if r.Method == "OPTIONS" {
-		w.WriteHeader(http.StatusOK)
-		return
-	}
-
 	if r.Method != "POST" {
 		RespondWithError(w, http.StatusMethodNotAllowed, "Method not allowed")
 		return
@@ -133,13 +120,6 @@ func Register(w http.ResponseWriter, r *http.Request) {
 
 // VerifyEmail handles email verification
 func VerifyEmail(w http.ResponseWriter, r *http.Request) {
-	enableCORS(&w)
-	
-	if r.Method == "OPTIONS" {
-		w.WriteHeader(http.StatusOK)
-		return
-	}
-
 	if r.Method != "GET" && r.Method != "POST" {
 		RespondWithError(w, http.StatusMethodNotAllowed, "Method not allowed")
 		return
@@ -226,13 +206,6 @@ func VerifyEmail(w http.ResponseWriter, r *http.Request) {
 
 // Login handles user login
 func Login(w http.ResponseWriter, r *http.Request) {
-	enableCORS(&w)
-	
-	if r.Method == "OPTIONS" {
-		w.WriteHeader(http.StatusOK)
-		return
-	}
-
 	if r.Method != "POST" {
 		RespondWithError(w, http.StatusMethodNotAllowed, "Method not allowed")
 		return
