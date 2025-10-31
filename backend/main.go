@@ -4,6 +4,11 @@ import (
 	"encoding/json"
 	"log"
 	"net/http"
+
+	"real-time-chat/database"
+	"real-time-chat/handlers"
+
+	"github.com/joho/godotenv"
 )
 
 type Message struct {
@@ -30,7 +35,24 @@ func healthHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func main() {
+	// Load environment variables
+	if err := godotenv.Load(); err != nil {
+		log.Println("No .env file found, using system environment variables")
+	}
+
+	// Initialize database
+	if err := database.InitDB(); err != nil {
+		log.Fatal("Failed to initialize database:", err)
+	}
+	defer database.CloseDB()
+
+	// Health check endpoint
 	http.HandleFunc("/api/health", healthHandler)
+	
+	// Auth endpoints
+	http.HandleFunc("/api/auth/register", handlers.Register)
+	http.HandleFunc("/api/auth/login", handlers.Login)
+	http.HandleFunc("/api/auth/verify", handlers.VerifyEmail)
 	
 	log.Println("Server starting on :8080")
 	if err := http.ListenAndServe(":8080", nil); err != nil {

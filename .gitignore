@@ -1,5 +1,8 @@
 # Backend (Go)
 backend/real-time-chat
+backend/server
+backend/chat.db
+backend/.env
 *.exe
 *.exe~
 *.dll
