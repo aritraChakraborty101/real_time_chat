@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
 import { authService } from '../services/authService';
 
@@ -7,6 +7,7 @@ const VerifyEmail: React.FC = () => {
   const navigate = useNavigate();
   const [status, setStatus] = useState<'verifying' | 'success' | 'error'>('verifying');
   const [message, setMessage] = useState('');
+  const verificationAttempted = useRef(false);
 
   useEffect(() => {
     const token = searchParams.get('token');
@@ -16,6 +17,12 @@ const VerifyEmail: React.FC = () => {
       setMessage('Invalid verification link');
       return;
     }
+
+    // Prevent double execution in React Strict Mode
+    if (verificationAttempted.current) {
+      return;
+    }
+    verificationAttempted.current = true;
 
     const verify = async () => {
       try {

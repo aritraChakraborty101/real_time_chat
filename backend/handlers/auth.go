@@ -161,6 +161,45 @@ func VerifyEmail(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Check if user is already verified with this token
+	var isVerified bool
+	var userID int
+	err := database.DB.QueryRow(
+		"SELECT id, is_verified FROM users WHERE verification_token = ?",
+		token,
+	).Scan(&userID, &isVerified)
+
+	if err == sql.ErrNoRows {
+		// Token doesn't exist, check if user is already verified
+		err = database.DB.QueryRow(
+			"SELECT id FROM users WHERE verification_token IS NULL AND is_verified = TRUE",
+		).Scan(&userID)
+		
+		if err == nil {
+			// User already verified, return success
+			RespondWithJSON(w, http.StatusOK, models.SuccessResponse{
+				Message: "Email already verified! You can log in.",
+			})
+			return
+		}
+		
+		RespondWithError(w, http.StatusBadRequest, "Invalid or expired verification token")
+		return
+	} else if err != nil {
+		log.Printf("Error checking verification: %v", err)
+		RespondWithError(w, http.StatusInternalServerError, "Internal server error")
+		return
+	}
+
+	// If already verified, return success
+	if isVerified {
+		RespondWithJSON(w, http.StatusOK, models.SuccessResponse{
+			Message: "Email already verified! You can log in.",
+		})
+		log.Printf("Email already verified for user ID: %d", userID)
+		return
+	}
+
 	// Update user verification status
 	result, err := database.DB.Exec(
 		"UPDATE users SET is_verified = TRUE, verification_token = NULL WHERE verification_token = ?",
@@ -182,7 +221,7 @@ func VerifyEmail(w http.ResponseWriter, r *http.Request) {
 		Message: "Email verified successfully! You can now log in.",
 	})
 
-	log.Printf("Email verified with token: %s", token)
+	log.Printf("Email verified with token: %s for user ID: %d", token, userID)
 }
 
 // Login handles user login
