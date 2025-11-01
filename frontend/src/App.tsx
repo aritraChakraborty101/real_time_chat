@@ -7,6 +7,7 @@ import Dashboard from './components/Dashboard';
 import ForgotPassword from './components/ForgotPassword';
 import ResetPassword from './components/ResetPassword';
 import { authService } from './services/authService';
+import { UserProfileProvider } from './context/UserProfileContext';
 
 function App() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
@@ -34,14 +35,16 @@ function App() {
 
   if (isAuthenticated) {
     return (
-      <Router>
-        <Routes>
-          <Route path="/" element={<Navigate to="/dashboard" />} />
-          <Route path="/dashboard/*" element={<Dashboard onLogout={handleLogout} />} />
-          <Route path="/verify" element={<VerifyEmail />} />
-          <Route path="*" element={<Navigate to="/dashboard" />} />
-        </Routes>
-      </Router>
+      <UserProfileProvider>
+        <Router>
+          <Routes>
+            <Route path="/" element={<Navigate to="/dashboard" />} />
+            <Route path="/dashboard/*" element={<Dashboard onLogout={handleLogout} />} />
+            <Route path="/verify" element={<VerifyEmail />} />
+            <Route path="*" element={<Navigate to="/dashboard" />} />
+          </Routes>
+        </Router>
+      </UserProfileProvider>
     );
   }
 

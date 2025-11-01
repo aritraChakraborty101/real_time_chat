@@ -1,6 +1,7 @@
 import React, { useState, useRef } from 'react';
 import { profileService } from '../services/profileService';
 import { authService } from '../services/authService';
+import { useUserProfile } from '../context/UserProfileContext';
 
 interface EditProfileProps {
   onClose: () => void;
@@ -9,6 +10,7 @@ interface EditProfileProps {
 
 const EditProfile: React.FC<EditProfileProps> = ({ onClose, onUpdate }) => {
   const user = authService.getCurrentUser();
+  const { refreshProfile } = useUserProfile();
   const [displayName, setDisplayName] = useState(user?.display_name || '');
   const [bio, setBio] = useState(user?.bio || '');
   const [profilePicture, setProfilePicture] = useState(user?.profile_picture || '');
@@ -50,6 +52,9 @@ const EditProfile: React.FC<EditProfileProps> = ({ onClose, onUpdate }) => {
         const updatedProfile = await profileService.getMyProfile();
         localStorage.setItem('user', JSON.stringify(updatedProfile));
         
+        // Refresh profile context
+        await refreshProfile();
+        
         if (onUpdate) onUpdate();
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Failed to upload image');
@@ -82,6 +87,9 @@ const EditProfile: React.FC<EditProfileProps> = ({ onClose, onUpdate }) => {
       
       // Update local storage
       localStorage.setItem('user', JSON.stringify(updatedUser));
+      
+      // Refresh profile context
+      await refreshProfile();
       
       if (onUpdate) onUpdate();
       

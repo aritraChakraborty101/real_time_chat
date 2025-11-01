@@ -175,7 +175,7 @@ const UserProfileView: React.FC<UserProfileViewProps> = ({ userId, onClose }) =>
         <div className="px-6 pb-6">
           {/* Avatar */}
           <div className="flex justify-center -mt-16 mb-4">
-            <div className="w-32 h-32 rounded-full border-4 border-white dark:border-gray-800 overflow-hidden bg-gradient-to-br from-blue-500 to-purple-600">
+            <div className="w-32 h-32 rounded-full border-4 border-white dark:border-gray-800 shadow-lg bg-gradient-to-br from-blue-500 to-purple-600 overflow-hidden">
               {profile?.profile_picture ? (
                 <img src={profile.profile_picture} alt={profile.username} className="w-full h-full object-cover" />
               ) : (

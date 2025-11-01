@@ -1,5 +1,6 @@
 import React from 'react';
 import { authService } from '../services/authService';
+import { useUserProfile } from '../context/UserProfileContext';
 
 interface NavbarProps {
   onToggleSidebar: () => void;
@@ -9,6 +10,7 @@ interface NavbarProps {
 
 const Navbar: React.FC<NavbarProps> = ({ onToggleSidebar, onToggleSettings, isSidebarOpen }) => {
   const user = authService.getCurrentUser();
+  const { profile } = useUserProfile();
 
   return (
     <nav className="fixed top-0 left-0 right-0 h-16 bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 shadow-sm z-40 transition-colors duration-200">
@@ -63,8 +65,16 @@ const Navbar: React.FC<NavbarProps> = ({ onToggleSidebar, onToggleSettings, isSi
               className="flex items-center space-x-2 p-1.5 sm:p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors duration-200"
               aria-label="Open settings"
             >
-              <div className="w-8 h-8 sm:w-9 sm:h-9 bg-gradient-to-br from-blue-500 to-purple-600 rounded-full flex items-center justify-center text-white font-semibold text-sm">
-                {user?.username?.charAt(0).toUpperCase()}
+              <div className="w-8 h-8 sm:w-9 sm:h-9 bg-gradient-to-br from-blue-500 to-purple-600 rounded-full flex items-center justify-center text-white font-semibold text-sm overflow-hidden">
+                {profile?.profile_picture ? (
+                  <img 
+                    src={profile.profile_picture} 
+                    alt={user?.username} 
+                    className="w-full h-full object-cover"
+                  />
+                ) : (
+                  user?.username?.charAt(0).toUpperCase()
+                )}
               </div>
               <svg className="w-4 h-4 text-gray-600 dark:text-gray-300 hidden sm:block" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
