@@ -5,9 +5,10 @@ import ThemeToggle from './ThemeToggle';
 interface LoginProps {
   onSuccess: () => void;
   onSwitchToRegister: () => void;
+  onSwitchToForgotPassword?: () => void;
 }
 
-const Login: React.FC<LoginProps> = ({ onSuccess, onSwitchToRegister }) => {
+const Login: React.FC<LoginProps> = ({ onSuccess, onSwitchToRegister, onSwitchToForgotPassword }) => {
   const [formData, setFormData] = useState({
     email: '',
     password: '',
@@ -92,6 +93,17 @@ const Login: React.FC<LoginProps> = ({ onSuccess, onSwitchToRegister }) => {
             placeholder="••••••••"
             required
           />
+          {onSwitchToForgotPassword && (
+            <div className="text-right mt-1">
+              <button
+                type="button"
+                onClick={onSwitchToForgotPassword}
+                className="text-sm text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 font-medium"
+              >
+                Forgot password?
+              </button>
+            </div>
+          )}
         </div>
 
         <button

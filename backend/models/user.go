@@ -11,6 +11,8 @@ type User struct {
 	Password  string    `json:"-"` // Never include password in JSON responses
 	IsVerified bool     `json:"is_verified"`
 	VerificationToken string `json:"-"`
+	ResetToken string `json:"-"`
+	ResetTokenExpires *time.Time `json:"-"`
 	CreatedAt time.Time `json:"created_at"`
 	UpdatedAt time.Time `json:"updated_at"`
 }
@@ -24,6 +26,20 @@ type RegisterRequest struct {
 type LoginRequest struct {
 	Email    string `json:"email"`
 	Password string `json:"password"`
+}
+
+type ForgotPasswordRequest struct {
+	Email string `json:"email"`
+}
+
+type ResetPasswordRequest struct {
+	Token       string `json:"token"`
+	NewPassword string `json:"new_password"`
+}
+
+type ChangePasswordRequest struct {
+	CurrentPassword string `json:"current_password"`
+	NewPassword     string `json:"new_password"`
 }
 
 type AuthResponse struct {

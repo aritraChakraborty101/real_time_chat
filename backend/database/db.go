@@ -37,11 +37,14 @@ func createTables() error {
 		password TEXT NOT NULL,
 		is_verified BOOLEAN DEFAULT FALSE,
 		verification_token TEXT,
+		reset_token TEXT,
+		reset_token_expires DATETIME,
 		created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
 		updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
 	);
 	CREATE INDEX IF NOT EXISTS idx_users_email ON users(email);
 	CREATE INDEX IF NOT EXISTS idx_users_username ON users(username);
+	CREATE INDEX IF NOT EXISTS idx_users_reset_token ON users(reset_token);
 	`
 
 	_, err := DB.Exec(usersTable)

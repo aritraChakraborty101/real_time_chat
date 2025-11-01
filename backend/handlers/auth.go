@@ -264,3 +264,215 @@ func Login(w http.ResponseWriter, r *http.Request) {
 
 	log.Printf("User logged in: ID=%d, Email=%s", user.ID, user.Email)
 }
+
+// ForgotPassword handles password reset requests
+func ForgotPassword(w http.ResponseWriter, r *http.Request) {
+	if r.Method != "POST" {
+		RespondWithError(w, http.StatusMethodNotAllowed, "Method not allowed")
+		return
+	}
+
+	var req models.ForgotPasswordRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		RespondWithError(w, http.StatusBadRequest, "Invalid request body")
+		return
+	}
+
+	req.Email = strings.TrimSpace(strings.ToLower(req.Email))
+	if !utils.ValidateEmail(req.Email) {
+		RespondWithError(w, http.StatusBadRequest, "Invalid email format")
+		return
+	}
+
+	// Check if user exists
+	var userID int
+	var isVerified bool
+	err := database.DB.QueryRow("SELECT id, is_verified FROM users WHERE email = ?", req.Email).Scan(&userID, &isVerified)
+	
+	// Always return success to prevent email enumeration
+	if err == sql.ErrNoRows {
+		RespondWithJSON(w, http.StatusOK, models.SuccessResponse{
+			Message: "If an account with that email exists, a password reset link has been sent.",
+		})
+		return
+	} else if err != nil {
+		log.Printf("Database error: %v", err)
+		RespondWithError(w, http.StatusInternalServerError, "Internal server error")
+		return
+	}
+
+	// Only send reset email if account is verified
+	if !isVerified {
+		RespondWithJSON(w, http.StatusOK, models.SuccessResponse{
+			Message: "If an account with that email exists, a password reset link has been sent.",
+		})
+		return
+	}
+
+	// Generate reset token
+	resetToken, err := utils.GenerateVerificationToken()
+	if err != nil {
+		log.Printf("Error generating reset token: %v", err)
+		RespondWithError(w, http.StatusInternalServerError, "Internal server error")
+		return
+	}
+
+	// Store reset token in database (expires in 1 hour)
+	_, err = database.DB.Exec(
+		"UPDATE users SET reset_token = ?, reset_token_expires = datetime('now', '+1 hour') WHERE id = ?",
+		resetToken, userID,
+	)
+	if err != nil {
+		log.Printf("Error storing reset token: %v", err)
+		RespondWithError(w, http.StatusInternalServerError, "Internal server error")
+		return
+	}
+
+	// Send password reset email
+	go utils.SendPasswordResetEmail(req.Email, resetToken)
+
+	RespondWithJSON(w, http.StatusOK, models.SuccessResponse{
+		Message: "If an account with that email exists, a password reset link has been sent.",
+	})
+
+	log.Printf("Password reset requested for email: %s", req.Email)
+}
+
+// ResetPassword handles password reset with token
+func ResetPassword(w http.ResponseWriter, r *http.Request) {
+	if r.Method != "POST" {
+		RespondWithError(w, http.StatusMethodNotAllowed, "Method not allowed")
+		return
+	}
+
+	var req models.ResetPasswordRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		RespondWithError(w, http.StatusBadRequest, "Invalid request body")
+		return
+	}
+
+	if req.Token == "" {
+		RespondWithError(w, http.StatusBadRequest, "Reset token is required")
+		return
+	}
+
+	// Validate new password
+	if err := utils.ValidatePassword(req.NewPassword); err != nil {
+		RespondWithError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+
+	// Find user with valid reset token
+	var userID int
+	var email string
+	err := database.DB.QueryRow(
+		"SELECT id, email FROM users WHERE reset_token = ? AND reset_token_expires > datetime('now')",
+		req.Token,
+	).Scan(&userID, &email)
+
+	if err == sql.ErrNoRows {
+		RespondWithError(w, http.StatusBadRequest, "Invalid or expired reset token")
+		return
+	} else if err != nil {
+		log.Printf("Database error: %v", err)
+		RespondWithError(w, http.StatusInternalServerError, "Internal server error")
+		return
+	}
+
+	// Hash new password
+	hashedPassword, err := utils.HashPassword(req.NewPassword)
+	if err != nil {
+		log.Printf("Error hashing password: %v", err)
+		RespondWithError(w, http.StatusInternalServerError, "Internal server error")
+		return
+	}
+
+	// Update password and clear reset token
+	_, err = database.DB.Exec(
+		"UPDATE users SET password = ?, reset_token = NULL, reset_token_expires = NULL, updated_at = CURRENT_TIMESTAMP WHERE id = ?",
+		hashedPassword, userID,
+	)
+	if err != nil {
+		log.Printf("Error updating password: %v", err)
+		RespondWithError(w, http.StatusInternalServerError, "Internal server error")
+		return
+	}
+
+	RespondWithJSON(w, http.StatusOK, models.SuccessResponse{
+		Message: "Password reset successfully! You can now log in with your new password.",
+	})
+
+	log.Printf("Password reset successful for user ID: %d, Email: %s", userID, email)
+}
+
+// ChangePassword handles password change for logged-in users
+func ChangePassword(w http.ResponseWriter, r *http.Request) {
+	if r.Method != "POST" {
+		RespondWithError(w, http.StatusMethodNotAllowed, "Method not allowed")
+		return
+	}
+
+	// Get user ID from JWT token
+	userID, ok := r.Context().Value("userID").(int)
+	if !ok {
+		RespondWithError(w, http.StatusUnauthorized, "Unauthorized")
+		return
+	}
+
+	var req models.ChangePasswordRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		RespondWithError(w, http.StatusBadRequest, "Invalid request body")
+		return
+	}
+
+	// Validate new password
+	if err := utils.ValidatePassword(req.NewPassword); err != nil {
+		RespondWithError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+
+	// Get current password hash from database
+	var currentPasswordHash string
+	var email string
+	err := database.DB.QueryRow(
+		"SELECT password, email FROM users WHERE id = ?",
+		userID,
+	).Scan(&currentPasswordHash, &email)
+
+	if err != nil {
+		log.Printf("Database error: %v", err)
+		RespondWithError(w, http.StatusInternalServerError, "Internal server error")
+		return
+	}
+
+	// Verify current password
+	if !utils.CheckPasswordHash(req.CurrentPassword, currentPasswordHash) {
+		RespondWithError(w, http.StatusUnauthorized, "Current password is incorrect")
+		return
+	}
+
+	// Hash new password
+	hashedPassword, err := utils.HashPassword(req.NewPassword)
+	if err != nil {
+		log.Printf("Error hashing password: %v", err)
+		RespondWithError(w, http.StatusInternalServerError, "Internal server error")
+		return
+	}
+
+	// Update password
+	_, err = database.DB.Exec(
+		"UPDATE users SET password = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?",
+		hashedPassword, userID,
+	)
+	if err != nil {
+		log.Printf("Error updating password: %v", err)
+		RespondWithError(w, http.StatusInternalServerError, "Internal server error")
+		return
+	}
+
+	RespondWithJSON(w, http.StatusOK, models.SuccessResponse{
+		Message: "Password changed successfully!",
+	})
+
+	log.Printf("Password changed for user ID: %d, Email: %s", userID, email)
+}

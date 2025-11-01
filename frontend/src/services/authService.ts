@@ -1,4 +1,4 @@
-import { RegisterRequest, LoginRequest, AuthResponse, SuccessResponse } from '../types/auth';
+import { RegisterRequest, LoginRequest, AuthResponse, SuccessResponse, ForgotPasswordRequest, ResetPasswordRequest, ChangePasswordRequest } from '../types/auth';
 
 const API_BASE_URL = 'http://localhost:8080/api';
 
@@ -54,6 +54,63 @@ export const authService = {
 
     if (!response.ok) {
       throw new Error(responseData.error || 'Verification failed');
+    }
+
+    return responseData;
+  },
+
+  async forgotPassword(data: ForgotPasswordRequest): Promise<SuccessResponse> {
+    const response = await fetch(`${API_BASE_URL}/auth/forgot-password`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(data),
+    });
+
+    const responseData = await response.json();
+
+    if (!response.ok) {
+      throw new Error(responseData.error || 'Failed to send reset email');
+    }
+
+    return responseData;
+  },
+
+  async resetPassword(data: ResetPasswordRequest): Promise<SuccessResponse> {
+    const response = await fetch(`${API_BASE_URL}/auth/reset-password`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(data),
+    });
+
+    const responseData = await response.json();
+
+    if (!response.ok) {
+      throw new Error(responseData.error || 'Failed to reset password');
+    }
+
+    return responseData;
+  },
+
+  async changePassword(data: ChangePasswordRequest): Promise<SuccessResponse> {
+    const token = this.getToken();
+    
+    const response = await fetch(`${API_BASE_URL}/auth/change-password`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`,
+      },
+      body: JSON.stringify(data),
+    });
+
+    const responseData = await response.json();
+
+    if (!response.ok) {
+      throw new Error(responseData.error || 'Failed to change password');
     }
 
     return responseData;

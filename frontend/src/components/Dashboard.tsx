@@ -1,6 +1,7 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { authService } from '../services/authService';
 import ThemeToggle from './ThemeToggle';
+import ChangePassword from './ChangePassword';
 
 interface DashboardProps {
   onLogout: () => void;
@@ -8,6 +9,7 @@ interface DashboardProps {
 
 const Dashboard: React.FC<DashboardProps> = ({ onLogout }) => {
   const user = authService.getCurrentUser();
+  const [showChangePassword, setShowChangePassword] = useState(false);
 
   const handleLogout = () => {
     authService.logout();
@@ -25,6 +27,12 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout }) => {
             </div>
             <div className="flex items-center space-x-4">
               <span className="text-gray-700 dark:text-gray-300">Welcome, {user?.username}!</span>
+              <button
+                onClick={() => setShowChangePassword(true)}
+                className="px-4 py-2 bg-blue-600 dark:bg-blue-500 text-white rounded-lg hover:bg-blue-700 dark:hover:bg-blue-600 transition-colors duration-200"
+              >
+                Settings
+              </button>
               <button
                 onClick={handleLogout}
                 className="px-4 py-2 bg-red-600 dark:bg-red-500 text-white rounded-lg hover:bg-red-700 dark:hover:bg-red-600 transition-colors duration-200"
@@ -79,6 +87,13 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout }) => {
           </div>
         </div>
       </div>
+
+      {/* Change Password Modal */}
+      {showChangePassword && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+          <ChangePassword onClose={() => setShowChangePassword(false)} />
+        </div>
+      )}
     </div>
   );
 };

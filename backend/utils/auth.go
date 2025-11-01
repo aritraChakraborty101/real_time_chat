@@ -110,3 +110,53 @@ func SendVerificationEmail(email, token string) error {
 	log.Printf("Verification email sent to %s", email)
 	return nil
 }
+
+// SendPasswordResetEmail sends an email with password reset link
+func SendPasswordResetEmail(email, token string) error {
+	smtpHost := os.Getenv("SMTP_HOST")
+	smtpPort := os.Getenv("SMTP_PORT")
+	smtpUser := os.Getenv("SMTP_USER")
+	smtpPassword := os.Getenv("SMTP_PASSWORD")
+	appURL := os.Getenv("APP_URL")
+
+	// Skip sending email if SMTP is not configured
+	if smtpHost == "" || smtpUser == "" || smtpPassword == "" {
+		log.Printf("SMTP not configured. Password reset link: %s/reset-password?token=%s", appURL, token)
+		return nil
+	}
+
+	from := smtpUser
+	to := []string{email}
+	
+	resetLink := fmt.Sprintf("%s/reset-password?token=%s", appURL, token)
+	
+	subject := "Subject: Reset your password\n"
+	mime := "MIME-version: 1.0;\nContent-Type: text/html; charset=\"UTF-8\";\n\n"
+	body := fmt.Sprintf(`
+		<html>
+		<body>
+			<h2>Password Reset Request</h2>
+			<p>You requested to reset your password. Click the link below to reset it:</p>
+			<a href="%s">Reset Password</a>
+			<p>Or copy and paste this link in your browser:</p>
+			<p>%s</p>
+			<p>This link will expire in 1 hour.</p>
+			<p>If you didn't request this, please ignore this email.</p>
+		</body>
+		</html>
+	`, resetLink, resetLink)
+
+	message := []byte(subject + mime + body)
+
+	auth := smtp.PlainAuth("", smtpUser, smtpPassword, smtpHost)
+	addr := fmt.Sprintf("%s:%s", smtpHost, smtpPort)
+
+	err := smtp.SendMail(addr, auth, from, to, message)
+	if err != nil {
+		log.Printf("Failed to send email: %v. Password reset link: %s", err, resetLink)
+		return err
+	}
+
+	log.Printf("Password reset email sent to %s", email)
+	return nil
+}
