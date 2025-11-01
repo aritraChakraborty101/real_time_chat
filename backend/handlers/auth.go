@@ -222,10 +222,11 @@ func Login(w http.ResponseWriter, r *http.Request) {
 	// Get user from database
 	var user models.User
 	var password string
+	var displayName, bio, profilePicture sql.NullString
 	err := database.DB.QueryRow(
-		"SELECT id, email, username, password, is_verified, created_at, updated_at FROM users WHERE email = ?",
+		"SELECT id, email, username, password, display_name, bio, profile_picture, is_verified, created_at, updated_at FROM users WHERE email = ?",
 		req.Email,
-	).Scan(&user.ID, &user.Email, &user.Username, &password, &user.IsVerified, &user.CreatedAt, &user.UpdatedAt)
+	).Scan(&user.ID, &user.Email, &user.Username, &password, &displayName, &bio, &profilePicture, &user.IsVerified, &user.CreatedAt, &user.UpdatedAt)
 
 	if err == sql.ErrNoRows {
 		RespondWithError(w, http.StatusUnauthorized, "Invalid email or password")
@@ -234,6 +235,17 @@ func Login(w http.ResponseWriter, r *http.Request) {
 		log.Printf("Database error: %v", err)
 		RespondWithError(w, http.StatusInternalServerError, "Internal server error")
 		return
+	}
+
+	// Set optional fields
+	if displayName.Valid {
+		user.DisplayName = displayName.String
+	}
+	if bio.Valid {
+		user.Bio = bio.String
+	}
+	if profilePicture.Valid {
+		user.ProfilePicture = profilePicture.String
 	}
 
 	// Check if email is verified

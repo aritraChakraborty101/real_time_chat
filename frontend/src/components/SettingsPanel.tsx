@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { authService } from '../services/authService';
 import { useTheme } from '../context/ThemeContext';
 import ChangePassword from './ChangePassword';
+import EditProfile from './EditProfile';
 
 interface SettingsPanelProps {
   isOpen: boolean;
@@ -13,10 +14,16 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({ isOpen, onClose, onLogout
   const user = authService.getCurrentUser();
   const { isDarkMode, toggleTheme } = useTheme();
   const [showChangePassword, setShowChangePassword] = useState(false);
+  const [showEditProfile, setShowEditProfile] = useState(false);
 
   const handleLogout = () => {
     authService.logout();
     onLogout();
+  };
+
+  const handleProfileUpdate = () => {
+    // Refresh the page to show updated profile
+    window.location.reload();
   };
 
   if (!isOpen) return null;
@@ -134,7 +141,10 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({ isOpen, onClose, onLogout
                 </svg>
               </button>
 
-              <button className="w-full flex items-center justify-between p-4 bg-gray-50 dark:bg-gray-700/50 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors duration-200">
+              <button
+                onClick={() => setShowEditProfile(true)}
+                className="w-full flex items-center justify-between p-4 bg-gray-50 dark:bg-gray-700/50 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors duration-200"
+              >
                 <div className="flex items-center space-x-3">
                   <div className="w-10 h-10 bg-purple-100 dark:bg-purple-900/30 rounded-lg flex items-center justify-center">
                     <svg className="w-5 h-5 text-purple-600 dark:text-purple-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -236,6 +246,16 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({ isOpen, onClose, onLogout
       {showChangePassword && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-[60]">
           <ChangePassword onClose={() => setShowChangePassword(false)} />
+        </div>
+      )}
+
+      {/* Edit Profile Modal */}
+      {showEditProfile && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-[60]">
+          <EditProfile 
+            onClose={() => setShowEditProfile(false)}
+            onUpdate={handleProfileUpdate}
+          />
         </div>
       )}
     </>

@@ -12,6 +12,7 @@ backend/.env
 *.out
 go.work
 
+
 # Frontend (React)
 frontend/node_modules/
 frontend/build/

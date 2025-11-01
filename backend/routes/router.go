@@ -19,6 +19,20 @@ func SetupRoutes() {
 	http.HandleFunc("/api/auth/forgot-password", middleware.CORSMiddleware(handlers.ForgotPassword))
 	http.HandleFunc("/api/auth/reset-password", middleware.CORSMiddleware(handlers.ResetPassword))
 	
-	// Protected endpoints (require authentication)
+	// Profile endpoints (protected)
+	http.HandleFunc("/api/profile/me", middleware.CORSMiddleware(middleware.AuthMiddleware(handlers.GetMyProfile)))
+	http.HandleFunc("/api/profile/update", middleware.CORSMiddleware(middleware.AuthMiddleware(handlers.UpdateProfile)))
+	http.HandleFunc("/api/profile/upload-picture", middleware.CORSMiddleware(middleware.AuthMiddleware(handlers.UploadProfilePicture)))
+	http.HandleFunc("/api/profile/user", middleware.CORSMiddleware(middleware.AuthMiddleware(handlers.GetUserProfile)))
+	http.HandleFunc("/api/profile/search", middleware.CORSMiddleware(middleware.AuthMiddleware(handlers.SearchUsers)))
+	
+	// Friend endpoints (protected)
+	http.HandleFunc("/api/friends", middleware.CORSMiddleware(middleware.AuthMiddleware(handlers.GetFriends)))
+	http.HandleFunc("/api/friends/requests", middleware.CORSMiddleware(middleware.AuthMiddleware(handlers.GetFriendRequests)))
+	http.HandleFunc("/api/friends/send", middleware.CORSMiddleware(middleware.AuthMiddleware(handlers.SendFriendRequest)))
+	http.HandleFunc("/api/friends/respond", middleware.CORSMiddleware(middleware.AuthMiddleware(handlers.RespondToFriendRequest)))
+	http.HandleFunc("/api/friends/remove", middleware.CORSMiddleware(middleware.AuthMiddleware(handlers.RemoveFriend)))
+	
+	// Password management (protected)
 	http.HandleFunc("/api/auth/change-password", middleware.CORSMiddleware(middleware.AuthMiddleware(handlers.ChangePassword)))
 }
