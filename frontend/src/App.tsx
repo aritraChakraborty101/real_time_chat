@@ -36,9 +36,10 @@ function App() {
     return (
       <Router>
         <Routes>
-          <Route path="/" element={<Dashboard onLogout={handleLogout} />} />
+          <Route path="/" element={<Navigate to="/dashboard" />} />
+          <Route path="/dashboard/*" element={<Dashboard onLogout={handleLogout} />} />
           <Route path="/verify" element={<VerifyEmail />} />
-          <Route path="*" element={<Navigate to="/" />} />
+          <Route path="*" element={<Navigate to="/dashboard" />} />
         </Routes>
       </Router>
     );
