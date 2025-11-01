@@ -50,8 +50,25 @@ const UserProfileView: React.FC<UserProfileViewProps> = ({ userId, onClose }) =>
     }
   };
 
+  const handleCancelRequest = async () => {
+    if (!profile || !window.confirm('Are you sure you want to cancel this friend request?')) return;
+    
+    setActionLoading(true);
+    setError('');
+    
+    try {
+      await profileService.removeFriend(profile.id);
+      // Reload profile to update friend status
+      await loadProfile();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to cancel request');
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
   const handleRemoveFriend = async () => {
-    if (!profile || !confirm('Are you sure you want to remove this friend?')) return;
+    if (!profile || !window.confirm('Are you sure you want to remove this friend?')) return;
     
     setActionLoading(true);
     setError('');
@@ -88,13 +105,14 @@ const UserProfileView: React.FC<UserProfileViewProps> = ({ userId, onClose }) =>
       case 'pending_sent':
         return (
           <button
-            disabled
-            className="w-full flex items-center justify-center space-x-2 px-4 py-2 bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400 rounded-lg cursor-not-allowed font-medium"
+            onClick={handleCancelRequest}
+            disabled={actionLoading}
+            className="w-full flex items-center justify-center space-x-2 px-4 py-2 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors duration-200 font-medium disabled:opacity-50"
           >
             <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
             </svg>
-            <span>Friend Request Sent</span>
+            <span>{actionLoading ? 'Canceling...' : 'Cancel Request'}</span>
           </button>
         );
       

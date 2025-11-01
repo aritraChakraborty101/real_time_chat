@@ -219,13 +219,14 @@ func GetUserProfile(w http.ResponseWriter, r *http.Request) {
 
 	var profile models.UserProfile
 	var targetUserID int
+	var displayName, bio, profilePicture sql.NullString
 
 	// Try to parse as ID first, otherwise treat as username
 	if id, err := strconv.Atoi(identifier); err == nil {
 		err = database.DB.QueryRow(
 			"SELECT id, username, display_name, bio, profile_picture, is_verified, created_at FROM users WHERE id = ?",
 			id,
-		).Scan(&profile.ID, &profile.Username, &profile.DisplayName, &profile.Bio, &profile.ProfilePicture, &profile.IsVerified, &profile.CreatedAt)
+		).Scan(&profile.ID, &profile.Username, &displayName, &bio, &profilePicture, &profile.IsVerified, &profile.CreatedAt)
 		targetUserID = id
 
 		if err == sql.ErrNoRows {
@@ -241,7 +242,7 @@ func GetUserProfile(w http.ResponseWriter, r *http.Request) {
 		err = database.DB.QueryRow(
 			"SELECT id, username, display_name, bio, profile_picture, is_verified, created_at FROM users WHERE username = ?",
 			identifier,
-		).Scan(&profile.ID, &profile.Username, &profile.DisplayName, &profile.Bio, &profile.ProfilePicture, &profile.IsVerified, &profile.CreatedAt)
+		).Scan(&profile.ID, &profile.Username, &displayName, &bio, &profilePicture, &profile.IsVerified, &profile.CreatedAt)
 
 		if err == sql.ErrNoRows {
 			RespondWithError(w, http.StatusNotFound, "User not found")
@@ -252,6 +253,17 @@ func GetUserProfile(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		targetUserID = profile.ID
+	}
+
+	// Set optional fields
+	if displayName.Valid {
+		profile.DisplayName = displayName.String
+	}
+	if bio.Valid {
+		profile.Bio = bio.String
+	}
+	if profilePicture.Valid {
+		profile.ProfilePicture = profilePicture.String
 	}
 
 	// Get friendship status if user is authenticated
