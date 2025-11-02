@@ -19,7 +19,10 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ friend: propFriend, onClo
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [sending, setSending] = useState(false);
+  const [isTyping, setIsTyping] = useState(false);
+  const [otherUserTyping, setOtherUserTyping] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const currentUser = authService.getCurrentUser();
 
   useEffect(() => {
@@ -33,7 +36,10 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ friend: propFriend, onClo
   useEffect(() => {
     if (friend) {
       loadMessages();
-      const interval = setInterval(loadMessages, 3000);
+      const interval = setInterval(() => {
+        loadMessages();
+        checkTypingStatus();
+      }, 3000);
       return () => clearInterval(interval);
     }
   }, [friend]);
@@ -64,6 +70,10 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ friend: propFriend, onClo
     try {
       const msgs = await messageService.getMessages(friend.id);
       setMessages(msgs);
+      
+      // Mark messages as read when viewing
+      await messageService.markConversationAsRead(friend.id);
+      
       setError('');
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load messages');
@@ -72,10 +82,58 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ friend: propFriend, onClo
     }
   };
 
+  const checkTypingStatus = async () => {
+    if (!friend) return;
+    
+    try {
+      const status = await messageService.getTypingStatus(friend.id);
+      setOtherUserTyping(status.is_typing);
+    } catch (err) {
+      // Silently fail for typing status
+    }
+  };
+
+  const handleTyping = async () => {
+    if (!friend || isTyping) return;
+
+    setIsTyping(true);
+    try {
+      await messageService.updateTypingStatus(friend.id, true);
+    } catch (err) {
+      // Silently fail
+    }
+
+    // Clear existing timeout
+    if (typingTimeoutRef.current) {
+      clearTimeout(typingTimeoutRef.current);
+    }
+
+    // Set timeout to stop typing indicator
+    typingTimeoutRef.current = setTimeout(async () => {
+      setIsTyping(false);
+      try {
+        await messageService.updateTypingStatus(friend.id, false);
+      } catch (err) {
+        // Silently fail
+      }
+    }, 3000);
+  };
+
   const handleSendMessage = async (e: React.FormEvent) => {
     e.preventDefault();
     
     if (!newMessage.trim() || sending || !friend) return;
+
+    // Clear typing indicator
+    if (typingTimeoutRef.current) {
+      clearTimeout(typingTimeoutRef.current);
+    }
+    setIsTyping(false);
+    try {
+      await messageService.updateTypingStatus(friend.id, false);
+    } catch (err) {
+      // Silently fail
+    }
 
     setSending(true);
     try {
@@ -110,6 +168,39 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ friend: propFriend, onClo
     } else {
       return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) + ' ' + 
              date.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
+    }
+  };
+
+  const renderMessageStatus = (status: string) => {
+    if (status === 'read') {
+      // Double checkmark (blue)
+      return (
+        <span className="inline-flex ml-1 text-blue-400">
+          <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+            <path d="M0 11l2-2 5 5L18 3l2 2L7 18z" />
+            <path d="M7 18l-2-2 5-5-2-2-5 5-2-2L7 5l2 2-5 5z" transform="translate(3, 0)" />
+          </svg>
+        </span>
+      );
+    } else if (status === 'delivered') {
+      // Double checkmark (gray)
+      return (
+        <span className="inline-flex ml-1">
+          <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+            <path d="M0 11l2-2 5 5L18 3l2 2L7 18z" />
+            <path d="M7 18l-2-2 5-5-2-2-5 5-2-2L7 5l2 2-5 5z" transform="translate(3, 0)" />
+          </svg>
+        </span>
+      );
+    } else {
+      // Single checkmark (sent)
+      return (
+        <span className="inline-flex ml-1">
+          <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+            <path d="M0 11l2-2 5 5L18 3l2 2L7 18z" />
+          </svg>
+        </span>
+      );
     }
   };
 
@@ -224,16 +315,28 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ friend: propFriend, onClo
                   >
                     <p className="break-words">{message.content}</p>
                     <p
-                      className={`text-xs mt-1 ${
+                      className={`text-xs mt-1 flex items-center ${
                         isOwnMessage ? 'text-blue-100' : 'text-gray-500 dark:text-gray-400'
                       }`}
                     >
-                      {formatTime(message.created_at)}
+                      <span>{formatTime(message.created_at)}</span>
+                      {isOwnMessage && renderMessageStatus(message.status)}
                     </p>
                   </div>
                 </div>
               );
             })}
+            {otherUserTyping && (
+              <div className="flex justify-start">
+                <div className="max-w-xs lg:max-w-md px-4 py-2 rounded-lg bg-gray-200 dark:bg-gray-700 rounded-bl-none">
+                  <div className="flex space-x-1">
+                    <div className="w-2 h-2 bg-gray-500 rounded-full animate-bounce" style={{ animationDelay: '0ms' }}></div>
+                    <div className="w-2 h-2 bg-gray-500 rounded-full animate-bounce" style={{ animationDelay: '150ms' }}></div>
+                    <div className="w-2 h-2 bg-gray-500 rounded-full animate-bounce" style={{ animationDelay: '300ms' }}></div>
+                  </div>
+                </div>
+              </div>
+            )}
             <div ref={messagesEndRef} />
           </>
         )}
@@ -252,7 +355,10 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ friend: propFriend, onClo
           <input
             type="text"
             value={newMessage}
-            onChange={(e) => setNewMessage(e.target.value)}
+            onChange={(e) => {
+              setNewMessage(e.target.value);
+              handleTyping();
+            }}
             placeholder="Type a message..."
             disabled={sending}
             className="flex-1 px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400"

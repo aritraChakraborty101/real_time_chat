@@ -173,13 +173,13 @@ func GetUserGroups(w http.ResponseWriter, r *http.Request) {
 		// Get last message
 		var lastMsg models.GroupMessage
 		err = database.DB.QueryRow(`
-			SELECT id, group_id, sender_id, content, created_at
+			SELECT id, group_id, sender_id, content, status, created_at
 			FROM group_messages
 			WHERE group_id = ?
 			ORDER BY created_at DESC
 			LIMIT 1`,
 			group.ID,
-		).Scan(&lastMsg.ID, &lastMsg.GroupID, &lastMsg.SenderID, &lastMsg.Content, &lastMsg.CreatedAt)
+		).Scan(&lastMsg.ID, &lastMsg.GroupID, &lastMsg.SenderID, &lastMsg.Content, &lastMsg.Status, &lastMsg.CreatedAt)
 
 		if err == nil {
 			group.LastMessage = &lastMsg
@@ -544,10 +544,10 @@ func SendGroupMessage(w http.ResponseWriter, r *http.Request) {
 	// Fetch the created message
 	var message models.GroupMessage
 	err = database.DB.QueryRow(`
-		SELECT id, group_id, sender_id, content, created_at
+		SELECT id, group_id, sender_id, content, status, created_at
 		FROM group_messages WHERE id = ?`,
 		messageID,
-	).Scan(&message.ID, &message.GroupID, &message.SenderID, &message.Content, &message.CreatedAt)
+	).Scan(&message.ID, &message.GroupID, &message.SenderID, &message.Content, &message.Status, &message.CreatedAt)
 
 	if err != nil {
 		log.Printf("Error fetching message: %v", err)
@@ -598,7 +598,7 @@ func GetGroupMessages(w http.ResponseWriter, r *http.Request) {
 
 	// Fetch messages with sender info
 	rows, err := database.DB.Query(`
-		SELECT gm.id, gm.group_id, gm.sender_id, gm.content, gm.created_at,
+		SELECT gm.id, gm.group_id, gm.sender_id, gm.content, gm.status, gm.created_at,
 			   u.id, u.username, u.display_name, u.bio, u.profile_picture, u.is_verified, u.created_at
 		FROM group_messages gm
 		JOIN users u ON gm.sender_id = u.id
@@ -620,7 +620,7 @@ func GetGroupMessages(w http.ResponseWriter, r *http.Request) {
 		var displayName, bio, profilePicture sql.NullString
 
 		err := rows.Scan(
-			&message.ID, &message.GroupID, &message.SenderID, &message.Content, &message.CreatedAt,
+			&message.ID, &message.GroupID, &message.SenderID, &message.Content, &message.Status, &message.CreatedAt,
 			&sender.ID, &sender.Username, &displayName, &bio, &profilePicture,
 			&sender.IsVerified, &sender.CreatedAt,
 		)

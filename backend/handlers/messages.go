@@ -126,10 +126,10 @@ func SendMessage(w http.ResponseWriter, r *http.Request) {
 	// Fetch the created message
 	var message models.Message
 	err = database.DB.QueryRow(`
-		SELECT id, conversation_id, sender_id, content, created_at
+		SELECT id, conversation_id, sender_id, content, status, created_at
 		FROM messages WHERE id = ?`,
 		messageID,
-	).Scan(&message.ID, &message.ConversationID, &message.SenderID, &message.Content, &message.CreatedAt)
+	).Scan(&message.ID, &message.ConversationID, &message.SenderID, &message.Content, &message.Status, &message.CreatedAt)
 
 	if err != nil {
 		log.Printf("Error fetching message: %v", err)
@@ -157,7 +157,7 @@ func GetConversations(w http.ResponseWriter, r *http.Request) {
 	rows, err := database.DB.Query(`
 		SELECT DISTINCT c.id, c.user1_id, c.user2_id, c.updated_at,
 			u.id, u.username, u.display_name, u.bio, u.profile_picture, u.is_verified, u.created_at,
-			m.id, m.conversation_id, m.sender_id, m.content, m.created_at
+			m.id, m.conversation_id, m.sender_id, m.content, m.status, m.created_at
 		FROM conversations c
 		JOIN users u ON (
 			CASE 
@@ -187,14 +187,14 @@ func GetConversations(w http.ResponseWriter, r *http.Request) {
 		var conv models.ConversationWithUser
 		var displayName, bio, profilePicture sql.NullString
 		var msgID, msgConvID, msgSenderID sql.NullInt64
-		var msgContent sql.NullString
+		var msgContent, msgStatus sql.NullString
 		var msgCreatedAt sql.NullTime
 
 		err := rows.Scan(
 			&conv.ID, &conv.OtherUser.ID, &conv.OtherUser.ID, &conv.UpdatedAt,
 			&conv.OtherUser.ID, &conv.OtherUser.Username, &displayName, &bio, &profilePicture,
 			&conv.OtherUser.IsVerified, &conv.OtherUser.CreatedAt,
-			&msgID, &msgConvID, &msgSenderID, &msgContent, &msgCreatedAt,
+			&msgID, &msgConvID, &msgSenderID, &msgContent, &msgStatus, &msgCreatedAt,
 		)
 		if err != nil {
 			log.Printf("Error scanning conversation: %v", err)
@@ -217,6 +217,7 @@ func GetConversations(w http.ResponseWriter, r *http.Request) {
 				ConversationID: int(msgConvID.Int64),
 				SenderID:       int(msgSenderID.Int64),
 				Content:        msgContent.String,
+				Status:         msgStatus.String,
 				CreatedAt:      msgCreatedAt.Time,
 			}
 		}
@@ -299,7 +300,7 @@ func GetMessages(w http.ResponseWriter, r *http.Request) {
 
 	// Fetch messages
 	rows, err := database.DB.Query(`
-		SELECT id, conversation_id, sender_id, content, created_at
+		SELECT id, conversation_id, sender_id, content, status, created_at
 		FROM messages
 		WHERE conversation_id = ?
 		ORDER BY created_at ASC`,
@@ -315,7 +316,7 @@ func GetMessages(w http.ResponseWriter, r *http.Request) {
 	var messages []models.Message
 	for rows.Next() {
 		var message models.Message
-		err := rows.Scan(&message.ID, &message.ConversationID, &message.SenderID, &message.Content, &message.CreatedAt)
+		err := rows.Scan(&message.ID, &message.ConversationID, &message.SenderID, &message.Content, &message.Status, &message.CreatedAt)
 		if err != nil {
 			log.Printf("Error scanning message: %v", err)
 			continue
@@ -328,4 +329,245 @@ func GetMessages(w http.ResponseWriter, r *http.Request) {
 	}
 
 	RespondWithJSON(w, http.StatusOK, messages)
+}
+
+// UpdateMessageStatus updates the status of messages (delivered/read)
+func UpdateMessageStatus(w http.ResponseWriter, r *http.Request) {
+	if r.Method != "POST" {
+		RespondWithError(w, http.StatusMethodNotAllowed, "Method not allowed")
+		return
+	}
+
+	userID, ok := r.Context().Value("userID").(int)
+	if !ok {
+		RespondWithError(w, http.StatusUnauthorized, "Unauthorized")
+		return
+	}
+
+	var req models.UpdateMessageStatusRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		RespondWithError(w, http.StatusBadRequest, "Invalid request body")
+		return
+	}
+
+	if len(req.MessageIDs) == 0 {
+		RespondWithError(w, http.StatusBadRequest, "No message IDs provided")
+		return
+	}
+
+	if req.Status != "delivered" && req.Status != "read" {
+		RespondWithError(w, http.StatusBadRequest, "Invalid status. Must be 'delivered' or 'read'")
+		return
+	}
+
+	// Build query to update messages where current user is the recipient
+	placeholders := ""
+	args := []interface{}{}
+	for i, msgID := range req.MessageIDs {
+		if i > 0 {
+			placeholders += ","
+		}
+		placeholders += "?"
+		args = append(args, msgID)
+	}
+	args = append(args, req.Status)
+	args = append(args, userID)
+
+	query := `
+		UPDATE messages 
+		SET status = ?
+		WHERE id IN (` + placeholders + `)
+		AND sender_id != ?
+		AND conversation_id IN (
+			SELECT id FROM conversations 
+			WHERE user1_id = ? OR user2_id = ?
+		)`
+	args = append(args, userID, userID)
+
+	result, err := database.DB.Exec(query, args...)
+	if err != nil {
+		log.Printf("Error updating message status: %v", err)
+		RespondWithError(w, http.StatusInternalServerError, "Failed to update message status")
+		return
+	}
+
+	rowsAffected, _ := result.RowsAffected()
+	RespondWithJSON(w, http.StatusOK, map[string]interface{}{
+		"message":        "Message status updated",
+		"rows_affected":  rowsAffected,
+		"status":         req.Status,
+	})
+}
+
+// MarkConversationAsRead marks all messages in a conversation as read
+func MarkConversationAsRead(w http.ResponseWriter, r *http.Request) {
+	if r.Method != "POST" {
+		RespondWithError(w, http.StatusMethodNotAllowed, "Method not allowed")
+		return
+	}
+
+	userID, ok := r.Context().Value("userID").(int)
+	if !ok {
+		RespondWithError(w, http.StatusUnauthorized, "Unauthorized")
+		return
+	}
+
+	friendIDStr := r.URL.Query().Get("friend_id")
+	if friendIDStr == "" {
+		RespondWithError(w, http.StatusBadRequest, "friend_id parameter is required")
+		return
+	}
+
+	friendID, err := strconv.Atoi(friendIDStr)
+	if err != nil {
+		RespondWithError(w, http.StatusBadRequest, "Invalid friend_id")
+		return
+	}
+
+	// Get conversation ID
+	user1ID, user2ID := userID, friendID
+	if user1ID > user2ID {
+		user1ID, user2ID = user2ID, user1ID
+	}
+
+	var conversationID int
+	err = database.DB.QueryRow(`
+		SELECT id FROM conversations 
+		WHERE user1_id = ? AND user2_id = ?`,
+		user1ID, user2ID,
+	).Scan(&conversationID)
+
+	if err == sql.ErrNoRows {
+		RespondWithJSON(w, http.StatusOK, map[string]string{"message": "No conversation found"})
+		return
+	} else if err != nil {
+		log.Printf("Error fetching conversation: %v", err)
+		RespondWithError(w, http.StatusInternalServerError, "Failed to fetch conversation")
+		return
+	}
+
+	// Mark all messages from friend as read
+	result, err := database.DB.Exec(`
+		UPDATE messages 
+		SET status = 'read'
+		WHERE conversation_id = ?
+		AND sender_id = ?
+		AND status != 'read'`,
+		conversationID, friendID,
+	)
+	if err != nil {
+		log.Printf("Error marking messages as read: %v", err)
+		RespondWithError(w, http.StatusInternalServerError, "Failed to mark messages as read")
+		return
+	}
+
+	rowsAffected, _ := result.RowsAffected()
+	RespondWithJSON(w, http.StatusOK, map[string]interface{}{
+		"message":       "Messages marked as read",
+		"rows_affected": rowsAffected,
+	})
+}
+
+// In-memory typing status store (for simple implementation)
+// In production, use Redis or similar for distributed systems
+var typingStatus = make(map[string]map[int]bool) // map[conversationKey]map[userID]isTyping
+
+// UpdateTypingStatus updates the typing status for a user in a conversation
+func UpdateTypingStatus(w http.ResponseWriter, r *http.Request) {
+	if r.Method != "POST" {
+		RespondWithError(w, http.StatusMethodNotAllowed, "Method not allowed")
+		return
+	}
+
+	userID, ok := r.Context().Value("userID").(int)
+	if !ok {
+		RespondWithError(w, http.StatusUnauthorized, "Unauthorized")
+		return
+	}
+
+	friendIDStr := r.URL.Query().Get("friend_id")
+	isTypingStr := r.URL.Query().Get("is_typing")
+	
+	if friendIDStr == "" {
+		RespondWithError(w, http.StatusBadRequest, "friend_id parameter is required")
+		return
+	}
+
+	friendID, err := strconv.Atoi(friendIDStr)
+	if err != nil {
+		RespondWithError(w, http.StatusBadRequest, "Invalid friend_id")
+		return
+	}
+
+	isTyping := isTypingStr == "true"
+
+	// Create conversation key (consistent ordering)
+	user1ID, user2ID := userID, friendID
+	if user1ID > user2ID {
+		user1ID, user2ID = user2ID, user1ID
+	}
+	convKey := strconv.Itoa(user1ID) + "_" + strconv.Itoa(user2ID)
+
+	// Update typing status
+	if typingStatus[convKey] == nil {
+		typingStatus[convKey] = make(map[int]bool)
+	}
+	typingStatus[convKey][userID] = isTyping
+
+	// Clean up if not typing
+	if !isTyping {
+		delete(typingStatus[convKey], userID)
+		if len(typingStatus[convKey]) == 0 {
+			delete(typingStatus, convKey)
+		}
+	}
+
+	RespondWithJSON(w, http.StatusOK, map[string]interface{}{
+		"message":   "Typing status updated",
+		"is_typing": isTyping,
+	})
+}
+
+// GetTypingStatus returns whether the other user is typing
+func GetTypingStatus(w http.ResponseWriter, r *http.Request) {
+	if r.Method != "GET" {
+		RespondWithError(w, http.StatusMethodNotAllowed, "Method not allowed")
+		return
+	}
+
+	userID, ok := r.Context().Value("userID").(int)
+	if !ok {
+		RespondWithError(w, http.StatusUnauthorized, "Unauthorized")
+		return
+	}
+
+	friendIDStr := r.URL.Query().Get("friend_id")
+	if friendIDStr == "" {
+		RespondWithError(w, http.StatusBadRequest, "friend_id parameter is required")
+		return
+	}
+
+	friendID, err := strconv.Atoi(friendIDStr)
+	if err != nil {
+		RespondWithError(w, http.StatusBadRequest, "Invalid friend_id")
+		return
+	}
+
+	// Create conversation key (consistent ordering)
+	user1ID, user2ID := userID, friendID
+	if user1ID > user2ID {
+		user1ID, user2ID = user2ID, user1ID
+	}
+	convKey := strconv.Itoa(user1ID) + "_" + strconv.Itoa(user2ID)
+
+	// Check if friend is typing
+	isTyping := false
+	if typingStatus[convKey] != nil {
+		isTyping = typingStatus[convKey][friendID]
+	}
+
+	RespondWithJSON(w, http.StatusOK, map[string]interface{}{
+		"is_typing": isTyping,
+		"user_id":   friendID,
+	})
 }

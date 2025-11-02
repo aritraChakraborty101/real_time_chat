@@ -1,4 +1,4 @@
-import { Message, ConversationWithUser, SendMessageRequest, MessageResponse } from '../types/auth';
+import { Message, ConversationWithUser, SendMessageRequest, MessageResponse, UpdateMessageStatusRequest, TypingStatusResponse } from '../types/auth';
 import { authService } from './authService';
 
 const API_BASE_URL = 'http://localhost:8080/api';
@@ -58,6 +58,59 @@ export const messageService = {
 
     if (!response.ok) {
       throw new Error(responseData.error || 'Failed to fetch messages');
+    }
+
+    return responseData;
+  },
+
+  async markConversationAsRead(friendId: number): Promise<void> {
+    const token = authService.getToken();
+    
+    const response = await fetch(`${API_BASE_URL}/messages/mark-read?friend_id=${friendId}`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+      },
+    });
+
+    const responseData = await response.json();
+
+    if (!response.ok) {
+      throw new Error(responseData.error || 'Failed to mark messages as read');
+    }
+  },
+
+  async updateTypingStatus(friendId: number, isTyping: boolean): Promise<void> {
+    const token = authService.getToken();
+    
+    const response = await fetch(`${API_BASE_URL}/messages/typing?friend_id=${friendId}&is_typing=${isTyping}`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+      },
+    });
+
+    const responseData = await response.json();
+
+    if (!response.ok) {
+      throw new Error(responseData.error || 'Failed to update typing status');
+    }
+  },
+
+  async getTypingStatus(friendId: number): Promise<TypingStatusResponse> {
+    const token = authService.getToken();
+    
+    const response = await fetch(`${API_BASE_URL}/messages/typing-status?friend_id=${friendId}`, {
+      method: 'GET',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+      },
+    });
+
+    const responseData = await response.json();
+
+    if (!response.ok) {
+      throw new Error(responseData.error || 'Failed to fetch typing status');
     }
 
     return responseData;

@@ -83,6 +83,7 @@ export interface Message {
   conversation_id: number;
   sender_id: number;
   content: string;
+  status: string; // "sent", "delivered", "read"
   created_at: string;
 }
 
@@ -143,6 +144,7 @@ export interface GroupMessage {
   sender_id: number;
   sender?: UserProfile;
   content: string;
+  status: string; // "sent", "delivered", "read"
   created_at: string;
 }
 
@@ -183,5 +185,15 @@ export interface SendGroupMessageRequest {
 
 export interface GroupMessageResponse {
   message: GroupMessage;
+}
+
+export interface UpdateMessageStatusRequest {
+  message_ids: number[];
+  status: string; // "delivered" or "read"
+}
+
+export interface TypingStatusResponse {
+  is_typing: boolean;
+  user_id: number;
 }
 

@@ -90,6 +90,7 @@ func createTables() error {
 		conversation_id INTEGER NOT NULL,
 		sender_id INTEGER NOT NULL,
 		content TEXT NOT NULL,
+		status TEXT DEFAULT 'sent' CHECK(status IN ('sent', 'delivered', 'read')),
 		created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
 		FOREIGN KEY (conversation_id) REFERENCES conversations(id) ON DELETE CASCADE,
 		FOREIGN KEY (sender_id) REFERENCES users(id) ON DELETE CASCADE
@@ -134,6 +135,7 @@ func createTables() error {
 		group_id INTEGER NOT NULL,
 		sender_id INTEGER NOT NULL,
 		content TEXT NOT NULL,
+		status TEXT DEFAULT 'sent' CHECK(status IN ('sent', 'delivered', 'read')),
 		created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
 		FOREIGN KEY (group_id) REFERENCES groups(id) ON DELETE CASCADE,
 		FOREIGN KEY (sender_id) REFERENCES users(id) ON DELETE CASCADE

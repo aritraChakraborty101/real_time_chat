@@ -98,6 +98,7 @@ type Message struct {
 	ConversationID int       `json:"conversation_id"`
 	SenderID       int       `json:"sender_id"`
 	Content        string    `json:"content"`
+	Status         string    `json:"status"` // "sent", "delivered", "read"
 	CreatedAt      time.Time `json:"created_at"`
 }
 
@@ -158,6 +159,7 @@ type GroupMessage struct {
 	SenderID  int       `json:"sender_id"`
 	Sender    *UserProfile `json:"sender,omitempty"`
 	Content   string    `json:"content"`
+	Status    string    `json:"status"` // "sent", "delivered", "read"
 	CreatedAt time.Time `json:"created_at"`
 }
 
@@ -198,4 +200,16 @@ type SendGroupMessageRequest struct {
 
 type GroupMessageResponse struct {
 	Message GroupMessage `json:"message"`
+}
+
+type TypingIndicator struct {
+	UserID         int    `json:"user_id"`
+	ConversationID int    `json:"conversation_id,omitempty"`
+	GroupID        int    `json:"group_id,omitempty"`
+	IsTyping       bool   `json:"is_typing"`
+}
+
+type UpdateMessageStatusRequest struct {
+	MessageIDs []int  `json:"message_ids"`
+	Status     string `json:"status"` // "delivered" or "read"
 }
