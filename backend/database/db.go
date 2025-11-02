@@ -68,12 +68,53 @@ func createTables() error {
 	CREATE INDEX IF NOT EXISTS idx_friendships_status ON friendships(status);
 	`
 
+	conversationsTable := `
+	CREATE TABLE IF NOT EXISTS conversations (
+		id INTEGER PRIMARY KEY AUTOINCREMENT,
+		user1_id INTEGER NOT NULL,
+		user2_id INTEGER NOT NULL,
+		created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+		updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+		FOREIGN KEY (user1_id) REFERENCES users(id) ON DELETE CASCADE,
+		FOREIGN KEY (user2_id) REFERENCES users(id) ON DELETE CASCADE,
+		UNIQUE(user1_id, user2_id),
+		CHECK(user1_id < user2_id)
+	);
+	CREATE INDEX IF NOT EXISTS idx_conversations_user1 ON conversations(user1_id);
+	CREATE INDEX IF NOT EXISTS idx_conversations_user2 ON conversations(user2_id);
+	`
+
+	messagesTable := `
+	CREATE TABLE IF NOT EXISTS messages (
+		id INTEGER PRIMARY KEY AUTOINCREMENT,
+		conversation_id INTEGER NOT NULL,
+		sender_id INTEGER NOT NULL,
+		content TEXT NOT NULL,
+		created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+		FOREIGN KEY (conversation_id) REFERENCES conversations(id) ON DELETE CASCADE,
+		FOREIGN KEY (sender_id) REFERENCES users(id) ON DELETE CASCADE
+	);
+	CREATE INDEX IF NOT EXISTS idx_messages_conversation ON messages(conversation_id);
+	CREATE INDEX IF NOT EXISTS idx_messages_sender ON messages(sender_id);
+	CREATE INDEX IF NOT EXISTS idx_messages_created_at ON messages(created_at);
+	`
+
 	_, err := DB.Exec(usersTable)
 	if err != nil {
 		return err
 	}
 
 	_, err = DB.Exec(friendshipsTable)
+	if err != nil {
+		return err
+	}
+
+	_, err = DB.Exec(conversationsTable)
+	if err != nil {
+		return err
+	}
+
+	_, err = DB.Exec(messagesTable)
 	return err
 }
 

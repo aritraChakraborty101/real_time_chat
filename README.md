@@ -209,6 +209,78 @@ Content-Type: application/json
 GET /api/health
 ```
 
+### Messaging Endpoints
+
+#### Send Message
+```http
+POST /api/messages/send
+Authorization: Bearer {token}
+Content-Type: application/json
+
+{
+  "recipient_id": 2,
+  "content": "Hello, how are you?"
+}
+```
+
+**Response (201 Created):**
+```json
+{
+  "message": {
+    "id": 1,
+    "conversation_id": 1,
+    "sender_id": 1,
+    "content": "Hello, how are you?",
+    "created_at": "2025-11-02T07:10:26Z"
+  }
+}
+```
+
+#### Get Conversations
+```http
+GET /api/messages/conversations
+Authorization: Bearer {token}
+```
+
+**Response (200 OK):**
+```json
+[
+  {
+    "id": 1,
+    "other_user": {
+      "id": 2,
+      "username": "johndoe",
+      "display_name": "John Doe"
+    },
+    "last_message": {
+      "content": "See you later!",
+      "created_at": "2025-11-02T07:10:26Z"
+    },
+    "unread_count": 0,
+    "updated_at": "2025-11-02T07:10:26Z"
+  }
+]
+```
+
+#### Get Messages
+```http
+GET /api/messages?friend_id=2
+Authorization: Bearer {token}
+```
+
+**Response (200 OK):**
+```json
+[
+  {
+    "id": 1,
+    "conversation_id": 1,
+    "sender_id": 1,
+    "content": "Hello!",
+    "created_at": "2025-11-02T07:00:00Z"
+  }
+]
+```
+
 ## Database Schema
 
 ### Users Table
@@ -228,6 +300,43 @@ CREATE TABLE users (
 **Indexes:**
 - `idx_users_email` on `email`
 - `idx_users_username` on `username`
+
+### Conversations Table
+```sql
+CREATE TABLE conversations (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user1_id INTEGER NOT NULL,
+    user2_id INTEGER NOT NULL,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (user1_id) REFERENCES users(id) ON DELETE CASCADE,
+    FOREIGN KEY (user2_id) REFERENCES users(id) ON DELETE CASCADE,
+    UNIQUE(user1_id, user2_id),
+    CHECK(user1_id < user2_id)
+);
+```
+
+**Indexes:**
+- `idx_conversations_user1` on `user1_id`
+- `idx_conversations_user2` on `user2_id`
+
+### Messages Table
+```sql
+CREATE TABLE messages (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    conversation_id INTEGER NOT NULL,
+    sender_id INTEGER NOT NULL,
+    content TEXT NOT NULL,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (conversation_id) REFERENCES conversations(id) ON DELETE CASCADE,
+    FOREIGN KEY (sender_id) REFERENCES users(id) ON DELETE CASCADE
+);
+```
+
+**Indexes:**
+- `idx_messages_conversation` on `conversation_id`
+- `idx_messages_sender` on `sender_id`
+- `idx_messages_created_at` on `created_at`
 
 ## Security Features
 
@@ -295,18 +404,24 @@ curl -X POST http://localhost:8080/api/auth/login \
 - ✅ Login/logout functionality
 - ✅ Protected dashboard
 - ✅ SQLite database with proper schema
+- ✅ User profile management
+- ✅ Friend system (add, accept, remove)
+- ✅ Password reset functionality
+- ✅ **One-to-one messaging** (MSG-01)
+  - Send and receive messages with friends
+  - Conversation history
+  - Message bubbles UI
+  - Multiple conversation entry points
 
 ### Next Steps (To Be Implemented)
 - WebSocket integration for real-time messaging
-- Message persistence
-- User-to-user chat
-- Group chat rooms
-- User presence indicators
+- Online/offline presence indicators
 - Typing indicators
-- Message history
-- File uploads
-- User profiles
-- Password reset functionality
+- Read receipts
+- Group chat rooms
+- File uploads and image sharing
+- Message search
+- Push notifications
 
 ## Troubleshooting
 

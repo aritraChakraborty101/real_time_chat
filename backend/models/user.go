@@ -92,3 +92,36 @@ type ProfileResponse struct {
 	Profile UserProfile `json:"profile"`
 	Message string      `json:"message,omitempty"`
 }
+
+type Message struct {
+	ID             int       `json:"id"`
+	ConversationID int       `json:"conversation_id"`
+	SenderID       int       `json:"sender_id"`
+	Content        string    `json:"content"`
+	CreatedAt      time.Time `json:"created_at"`
+}
+
+type Conversation struct {
+	ID        int       `json:"id"`
+	User1ID   int       `json:"user1_id"`
+	User2ID   int       `json:"user2_id"`
+	CreatedAt time.Time `json:"created_at"`
+	UpdatedAt time.Time `json:"updated_at"`
+}
+
+type ConversationWithUser struct {
+	ID             int         `json:"id"`
+	OtherUser      UserProfile `json:"other_user"`
+	LastMessage    *Message    `json:"last_message,omitempty"`
+	UnreadCount    int         `json:"unread_count"`
+	UpdatedAt      time.Time   `json:"updated_at"`
+}
+
+type SendMessageRequest struct {
+	RecipientID int    `json:"recipient_id"`
+	Content     string `json:"content"`
+}
+
+type MessageResponse struct {
+	Message Message `json:"message"`
+}

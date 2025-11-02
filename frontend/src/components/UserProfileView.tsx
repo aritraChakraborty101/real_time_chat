@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { UserProfile } from '../types/auth';
 import { profileService } from '../services/profileService';
 import { authService } from '../services/authService';
+import ChatInterface from './ChatInterface';
 
 interface UserProfileViewProps {
   userId: number | string;
@@ -13,6 +14,7 @@ const UserProfileView: React.FC<UserProfileViewProps> = ({ userId, onClose }) =>
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [actionLoading, setActionLoading] = useState(false);
+  const [showChat, setShowChat] = useState(false);
   const currentUser = authService.getCurrentUser();
 
   useEffect(() => {
@@ -90,16 +92,27 @@ const UserProfileView: React.FC<UserProfileViewProps> = ({ userId, onClose }) =>
     switch (profile.friend_status) {
       case 'friend':
         return (
-          <button
-            onClick={handleRemoveFriend}
-            disabled={actionLoading}
-            className="w-full flex items-center justify-center space-x-2 px-4 py-2 bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 rounded-lg hover:bg-red-100 dark:hover:bg-red-900/30 transition-colors duration-200 font-medium disabled:opacity-50"
-          >
-            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7a4 4 0 11-8 0 4 4 0 018 0zM9 14a6 6 0 00-6 6v1h12v-1a6 6 0 00-6-6zM21 12h-6" />
-            </svg>
-            <span>{actionLoading ? 'Removing...' : 'Remove Friend'}</span>
-          </button>
+          <div className="space-y-2">
+            <button
+              onClick={() => setShowChat(true)}
+              className="w-full flex items-center justify-center space-x-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors duration-200 font-medium"
+            >
+              <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
+              </svg>
+              <span>Send Message</span>
+            </button>
+            <button
+              onClick={handleRemoveFriend}
+              disabled={actionLoading}
+              className="w-full flex items-center justify-center space-x-2 px-4 py-2 bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 rounded-lg hover:bg-red-100 dark:hover:bg-red-900/30 transition-colors duration-200 font-medium disabled:opacity-50"
+            >
+              <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7a4 4 0 11-8 0 4 4 0 018 0zM9 14a6 6 0 00-6 6v1h12v-1a6 6 0 00-6-6zM21 12h-6" />
+              </svg>
+              <span>{actionLoading ? 'Removing...' : 'Remove Friend'}</span>
+            </button>
+          </div>
         );
       
       case 'pending_sent':
@@ -234,6 +247,15 @@ const UserProfileView: React.FC<UserProfileViewProps> = ({ userId, onClose }) =>
           {renderFriendButton()}
         </div>
       </div>
+
+      {/* Chat Interface Modal */}
+      {showChat && profile && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50 p-4">
+          <div className="w-full max-w-4xl h-[80vh] bg-white dark:bg-gray-800 rounded-lg shadow-xl overflow-hidden">
+            <ChatInterface friend={profile} onClose={() => setShowChat(false)} />
+          </div>
+        </div>
+      )}
     </div>
   );
 };

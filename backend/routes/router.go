@@ -33,6 +33,11 @@ func SetupRoutes() {
 	http.HandleFunc("/api/friends/respond", middleware.CORSMiddleware(middleware.AuthMiddleware(handlers.RespondToFriendRequest)))
 	http.HandleFunc("/api/friends/remove", middleware.CORSMiddleware(middleware.AuthMiddleware(handlers.RemoveFriend)))
 	
+	// Message endpoints (protected)
+	http.HandleFunc("/api/messages/send", middleware.CORSMiddleware(middleware.AuthMiddleware(handlers.SendMessage)))
+	http.HandleFunc("/api/messages/conversations", middleware.CORSMiddleware(middleware.AuthMiddleware(handlers.GetConversations)))
+	http.HandleFunc("/api/messages", middleware.CORSMiddleware(middleware.AuthMiddleware(handlers.GetMessages)))
+	
 	// Password management (protected)
 	http.HandleFunc("/api/auth/change-password", middleware.CORSMiddleware(middleware.AuthMiddleware(handlers.ChangePassword)))
 }

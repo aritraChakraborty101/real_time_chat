@@ -77,3 +77,36 @@ export interface FriendRequestResponse {
   friend: UserProfile;
   created_at: string;
 }
+
+export interface Message {
+  id: number;
+  conversation_id: number;
+  sender_id: number;
+  content: string;
+  created_at: string;
+}
+
+export interface Conversation {
+  id: number;
+  user1_id: number;
+  user2_id: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ConversationWithUser {
+  id: number;
+  other_user: UserProfile;
+  last_message?: Message;
+  unread_count: number;
+  updated_at: string;
+}
+
+export interface SendMessageRequest {
+  recipient_id: number;
+  content: string;
+}
+
+export interface MessageResponse {
+  message: Message;
+}

@@ -2,12 +2,14 @@ import React, { useState, useEffect } from 'react';
 import { UserProfile } from '../types/auth';
 import { profileService } from '../services/profileService';
 import UserProfileView from './UserProfileView';
+import ChatInterface from './ChatInterface';
 
 const FriendsList: React.FC = () => {
   const [friends, setFriends] = useState<UserProfile[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [selectedUser, setSelectedUser] = useState<number | null>(null);
+  const [chatWithUser, setChatWithUser] = useState<UserProfile | null>(null);
 
   useEffect(() => {
     loadFriends();
@@ -31,10 +33,19 @@ const FriendsList: React.FC = () => {
     setSelectedUser(userId);
   };
 
+  const handleChatClick = (e: React.MouseEvent, friend: UserProfile) => {
+    e.stopPropagation();
+    setChatWithUser(friend);
+  };
+
   const closeProfile = () => {
     setSelectedUser(null);
     // Refresh friends list to update status
     loadFriends();
+  };
+
+  const closeChat = () => {
+    setChatWithUser(null);
   };
 
   if (loading) {
@@ -112,14 +123,17 @@ const FriendsList: React.FC = () => {
                 )}
               </div>
 
-              {/* Friend Badge */}
-              <div className="flex-shrink-0">
-                <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400">
-                  <svg className="w-3 h-3 mr-1" fill="currentColor" viewBox="0 0 20 20">
-                    <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+              {/* Action Buttons */}
+              <div className="flex items-center space-x-2">
+                <button
+                  onClick={(e) => handleChatClick(e, friend)}
+                  className="p-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors duration-200"
+                  title="Start chat"
+                >
+                  <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
                   </svg>
-                  Friend
-                </span>
+                </button>
               </div>
             </div>
           ))}
@@ -142,6 +156,15 @@ const FriendsList: React.FC = () => {
           userId={selectedUser}
           onClose={closeProfile}
         />
+      )}
+
+      {/* Chat Modal */}
+      {chatWithUser && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50 p-4">
+          <div className="w-full max-w-4xl h-[80vh] bg-white dark:bg-gray-800 rounded-lg shadow-xl overflow-hidden">
+            <ChatInterface friend={chatWithUser} onClose={closeChat} />
+          </div>
+        </div>
       )}
     </div>
   );

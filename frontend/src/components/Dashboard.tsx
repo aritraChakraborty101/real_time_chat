@@ -8,6 +8,7 @@ import UserSearch from './UserSearch';
 import FriendsList from './FriendsList';
 import FriendRequests from './FriendRequests';
 import DashboardHome from './DashboardHome';
+import Conversations from './Conversations';
 
 interface DashboardProps {
   onLogout: () => void;
@@ -31,10 +32,11 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout }) => {
     if (path.includes('/search')) return 'search';
     if (path.includes('/friends')) return 'friends';
     if (path.includes('/requests')) return 'requests';
+    if (path.includes('/messages')) return 'messages';
     return 'dashboard';
   };
 
-  const handleMenuClick = (view: 'dashboard' | 'search' | 'friends' | 'requests') => {
+  const handleMenuClick = (view: 'dashboard' | 'search' | 'friends' | 'requests' | 'messages') => {
     navigate(`/dashboard/${view === 'dashboard' ? '' : view}`);
     closeSidebar(); // Close sidebar on mobile after selection
   };
@@ -78,6 +80,7 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout }) => {
             } />
             <Route path="friends" element={<FriendsList />} />
             <Route path="requests" element={<FriendRequests />} />
+            <Route path="messages" element={<Conversations />} />
             <Route path="*" element={<Navigate to="/dashboard" />} />
           </Routes>
         </div>
