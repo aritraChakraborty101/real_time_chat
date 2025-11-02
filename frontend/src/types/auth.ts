@@ -110,3 +110,78 @@ export interface SendMessageRequest {
 export interface MessageResponse {
   message: Message;
 }
+
+export interface Group {
+  id: number;
+  name: string;
+  description?: string;
+  group_picture?: string;
+  created_by: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface GroupMember {
+  id: number;
+  group_id: number;
+  user_id: number;
+  role: string;
+  joined_at: string;
+}
+
+export interface GroupMemberWithUser {
+  id: number;
+  group_id: number;
+  user: UserProfile;
+  role: string;
+  joined_at: string;
+}
+
+export interface GroupMessage {
+  id: number;
+  group_id: number;
+  sender_id: number;
+  sender?: UserProfile;
+  content: string;
+  created_at: string;
+}
+
+export interface GroupWithDetails {
+  id: number;
+  name: string;
+  description?: string;
+  group_picture?: string;
+  created_by: number;
+  member_count: number;
+  members?: GroupMemberWithUser[];
+  last_message?: GroupMessage;
+  user_role?: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface CreateGroupRequest {
+  name: string;
+  description: string;
+  group_picture: string;
+  member_ids: number[];
+}
+
+export interface AddGroupMemberRequest {
+  user_id: number;
+}
+
+export interface UpdateGroupRequest {
+  name: string;
+  description: string;
+  group_picture: string;
+}
+
+export interface SendGroupMessageRequest {
+  content: string;
+}
+
+export interface GroupMessageResponse {
+  message: GroupMessage;
+}
+

@@ -10,6 +10,8 @@ import FriendRequests from './FriendRequests';
 import DashboardHome from './DashboardHome';
 import Conversations from './Conversations';
 import ChatInterface from './ChatInterface';
+import Groups from './Groups';
+import GroupChat from './GroupChat';
 
 interface DashboardProps {
   onLogout: () => void;
@@ -33,10 +35,11 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout }) => {
     if (path.includes('/friends')) return 'friends';
     if (path.includes('/requests')) return 'requests';
     if (path.includes('/messages') || path.includes('/chat')) return 'messages';
+    if (path.includes('/groups') || path.includes('/group')) return 'groups';
     return 'dashboard';
   };
 
-  const handleMenuClick = (view: 'dashboard' | 'search' | 'friends' | 'requests' | 'messages') => {
+  const handleMenuClick = (view: 'dashboard' | 'search' | 'friends' | 'requests' | 'messages' | 'groups') => {
     navigate(`/dashboard/${view === 'dashboard' ? '' : view}`);
     closeSidebar(); // Close sidebar on mobile after selection
   };
@@ -82,6 +85,8 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout }) => {
             <Route path="requests" element={<FriendRequests />} />
             <Route path="messages" element={<Conversations />} />
             <Route path="chat/:friendId" element={<ChatInterface />} />
+            <Route path="groups" element={<Groups />} />
+            <Route path="group/:groupId" element={<GroupChat />} />
             <Route path="*" element={<Navigate to="/dashboard" />} />
           </Routes>
         </div>

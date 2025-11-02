@@ -99,6 +99,50 @@ func createTables() error {
 	CREATE INDEX IF NOT EXISTS idx_messages_created_at ON messages(created_at);
 	`
 
+	groupsTable := `
+	CREATE TABLE IF NOT EXISTS groups (
+		id INTEGER PRIMARY KEY AUTOINCREMENT,
+		name TEXT NOT NULL,
+		description TEXT,
+		group_picture TEXT,
+		created_by INTEGER NOT NULL,
+		created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+		updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+		FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE CASCADE
+	);
+	CREATE INDEX IF NOT EXISTS idx_groups_created_by ON groups(created_by);
+	`
+
+	groupMembersTable := `
+	CREATE TABLE IF NOT EXISTS group_members (
+		id INTEGER PRIMARY KEY AUTOINCREMENT,
+		group_id INTEGER NOT NULL,
+		user_id INTEGER NOT NULL,
+		role TEXT NOT NULL DEFAULT 'member' CHECK(role IN ('admin', 'member')),
+		joined_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+		FOREIGN KEY (group_id) REFERENCES groups(id) ON DELETE CASCADE,
+		FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+		UNIQUE(group_id, user_id)
+	);
+	CREATE INDEX IF NOT EXISTS idx_group_members_group ON group_members(group_id);
+	CREATE INDEX IF NOT EXISTS idx_group_members_user ON group_members(user_id);
+	`
+
+	groupMessagesTable := `
+	CREATE TABLE IF NOT EXISTS group_messages (
+		id INTEGER PRIMARY KEY AUTOINCREMENT,
+		group_id INTEGER NOT NULL,
+		sender_id INTEGER NOT NULL,
+		content TEXT NOT NULL,
+		created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+		FOREIGN KEY (group_id) REFERENCES groups(id) ON DELETE CASCADE,
+		FOREIGN KEY (sender_id) REFERENCES users(id) ON DELETE CASCADE
+	);
+	CREATE INDEX IF NOT EXISTS idx_group_messages_group ON group_messages(group_id);
+	CREATE INDEX IF NOT EXISTS idx_group_messages_sender ON group_messages(sender_id);
+	CREATE INDEX IF NOT EXISTS idx_group_messages_created_at ON group_messages(created_at);
+	`
+
 	_, err := DB.Exec(usersTable)
 	if err != nil {
 		return err
@@ -115,6 +159,21 @@ func createTables() error {
 	}
 
 	_, err = DB.Exec(messagesTable)
+	if err != nil {
+		return err
+	}
+
+	_, err = DB.Exec(groupsTable)
+	if err != nil {
+		return err
+	}
+
+	_, err = DB.Exec(groupMembersTable)
+	if err != nil {
+		return err
+	}
+
+	_, err = DB.Exec(groupMessagesTable)
 	return err
 }
 

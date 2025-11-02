@@ -125,3 +125,77 @@ type SendMessageRequest struct {
 type MessageResponse struct {
 	Message Message `json:"message"`
 }
+
+type Group struct {
+	ID           int       `json:"id"`
+	Name         string    `json:"name"`
+	Description  string    `json:"description,omitempty"`
+	GroupPicture string    `json:"group_picture,omitempty"`
+	CreatedBy    int       `json:"created_by"`
+	CreatedAt    time.Time `json:"created_at"`
+	UpdatedAt    time.Time `json:"updated_at"`
+}
+
+type GroupMember struct {
+	ID       int       `json:"id"`
+	GroupID  int       `json:"group_id"`
+	UserID   int       `json:"user_id"`
+	Role     string    `json:"role"`
+	JoinedAt time.Time `json:"joined_at"`
+}
+
+type GroupMemberWithUser struct {
+	ID       int         `json:"id"`
+	GroupID  int         `json:"group_id"`
+	User     UserProfile `json:"user"`
+	Role     string      `json:"role"`
+	JoinedAt time.Time   `json:"joined_at"`
+}
+
+type GroupMessage struct {
+	ID        int       `json:"id"`
+	GroupID   int       `json:"group_id"`
+	SenderID  int       `json:"sender_id"`
+	Sender    *UserProfile `json:"sender,omitempty"`
+	Content   string    `json:"content"`
+	CreatedAt time.Time `json:"created_at"`
+}
+
+type GroupWithDetails struct {
+	ID           int                   `json:"id"`
+	Name         string                `json:"name"`
+	Description  string                `json:"description,omitempty"`
+	GroupPicture string                `json:"group_picture,omitempty"`
+	CreatedBy    int                   `json:"created_by"`
+	MemberCount  int                   `json:"member_count"`
+	Members      []GroupMemberWithUser `json:"members,omitempty"`
+	LastMessage  *GroupMessage         `json:"last_message,omitempty"`
+	UserRole     string                `json:"user_role,omitempty"`
+	CreatedAt    time.Time             `json:"created_at"`
+	UpdatedAt    time.Time             `json:"updated_at"`
+}
+
+type CreateGroupRequest struct {
+	Name         string `json:"name"`
+	Description  string `json:"description"`
+	GroupPicture string `json:"group_picture"`
+	MemberIDs    []int  `json:"member_ids"`
+}
+
+type AddGroupMemberRequest struct {
+	UserID int `json:"user_id"`
+}
+
+type UpdateGroupRequest struct {
+	Name         string `json:"name"`
+	Description  string `json:"description"`
+	GroupPicture string `json:"group_picture"`
+}
+
+type SendGroupMessageRequest struct {
+	Content string `json:"content"`
+}
+
+type GroupMessageResponse struct {
+	Message GroupMessage `json:"message"`
+}

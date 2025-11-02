@@ -38,6 +38,16 @@ func SetupRoutes() {
 	http.HandleFunc("/api/messages/conversations", middleware.CORSMiddleware(middleware.AuthMiddleware(handlers.GetConversations)))
 	http.HandleFunc("/api/messages", middleware.CORSMiddleware(middleware.AuthMiddleware(handlers.GetMessages)))
 	
+	// Group endpoints (protected)
+	http.HandleFunc("/api/groups/create", middleware.CORSMiddleware(middleware.AuthMiddleware(handlers.CreateGroup)))
+	http.HandleFunc("/api/groups", middleware.CORSMiddleware(middleware.AuthMiddleware(handlers.GetUserGroups)))
+	http.HandleFunc("/api/groups/details", middleware.CORSMiddleware(middleware.AuthMiddleware(handlers.GetGroupDetails)))
+	http.HandleFunc("/api/groups/add-member", middleware.CORSMiddleware(middleware.AuthMiddleware(handlers.AddGroupMember)))
+	http.HandleFunc("/api/groups/leave", middleware.CORSMiddleware(middleware.AuthMiddleware(handlers.LeaveGroup)))
+	http.HandleFunc("/api/groups/remove-member", middleware.CORSMiddleware(middleware.AuthMiddleware(handlers.RemoveGroupMember)))
+	http.HandleFunc("/api/groups/send-message", middleware.CORSMiddleware(middleware.AuthMiddleware(handlers.SendGroupMessage)))
+	http.HandleFunc("/api/groups/messages", middleware.CORSMiddleware(middleware.AuthMiddleware(handlers.GetGroupMessages)))
+	
 	// Password management (protected)
 	http.HandleFunc("/api/auth/change-password", middleware.CORSMiddleware(middleware.AuthMiddleware(handlers.ChangePassword)))
 }
