@@ -6,6 +6,7 @@ import (
 	"log"
 	"net/http"
 	"strconv"
+	"time"
 
 	"real-time-chat/database"
 	"real-time-chat/models"
@@ -61,7 +62,7 @@ func SendMessage(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var req models.SendMessageRequest
+	var req models.SendMessageWithReplyRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		RespondWithError(w, http.StatusBadRequest, "Invalid request body")
 		return
@@ -101,11 +102,24 @@ func SendMessage(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Validate reply_to_message_id if provided
+	if req.ReplyToMessageID != nil {
+		var msgConvID int
+		err = database.DB.QueryRow(`
+			SELECT conversation_id FROM messages WHERE id = ?`, *req.ReplyToMessageID,
+		).Scan(&msgConvID)
+		
+		if err != nil || msgConvID != conversationID {
+			RespondWithError(w, http.StatusBadRequest, "Invalid reply_to_message_id")
+			return
+		}
+	}
+
 	// Insert message
 	result, err := database.DB.Exec(`
-		INSERT INTO messages (conversation_id, sender_id, content)
-		VALUES (?, ?, ?)`,
-		conversationID, userID, req.Content,
+		INSERT INTO messages (conversation_id, sender_id, content, reply_to_message_id)
+		VALUES (?, ?, ?, ?)`,
+		conversationID, userID, req.Content, req.ReplyToMessageID,
 	)
 	if err != nil {
 		log.Printf("Error inserting message: %v", err)
@@ -125,16 +139,28 @@ func SendMessage(w http.ResponseWriter, r *http.Request) {
 
 	// Fetch the created message
 	var message models.Message
+	var editedAt sql.NullTime
+	var replyToMsgID sql.NullInt64
 	err = database.DB.QueryRow(`
-		SELECT id, conversation_id, sender_id, content, status, created_at
+		SELECT id, conversation_id, sender_id, content, status, is_deleted, deleted_for_everyone, 
+		       is_edited, edited_at, reply_to_message_id, created_at
 		FROM messages WHERE id = ?`,
 		messageID,
-	).Scan(&message.ID, &message.ConversationID, &message.SenderID, &message.Content, &message.Status, &message.CreatedAt)
+	).Scan(&message.ID, &message.ConversationID, &message.SenderID, &message.Content, &message.Status,
+		&message.IsDeleted, &message.DeletedForEveryone, &message.IsEdited, &editedAt, &replyToMsgID, &message.CreatedAt)
 
 	if err != nil {
 		log.Printf("Error fetching message: %v", err)
 		RespondWithError(w, http.StatusInternalServerError, "Failed to fetch message")
 		return
+	}
+
+	if editedAt.Valid {
+		message.EditedAt = &editedAt.Time
+	}
+	if replyToMsgID.Valid {
+		msgID := int(replyToMsgID.Int64)
+		message.ReplyToMessageID = &msgID
 	}
 
 	RespondWithJSON(w, http.StatusCreated, models.MessageResponse{Message: message})
@@ -300,7 +326,8 @@ func GetMessages(w http.ResponseWriter, r *http.Request) {
 
 	// Fetch messages
 	rows, err := database.DB.Query(`
-		SELECT id, conversation_id, sender_id, content, status, created_at
+		SELECT id, conversation_id, sender_id, content, status, is_deleted, deleted_for_everyone,
+		       is_edited, edited_at, reply_to_message_id, created_at
 		FROM messages
 		WHERE conversation_id = ?
 		ORDER BY created_at ASC`,
@@ -316,11 +343,33 @@ func GetMessages(w http.ResponseWriter, r *http.Request) {
 	var messages []models.Message
 	for rows.Next() {
 		var message models.Message
-		err := rows.Scan(&message.ID, &message.ConversationID, &message.SenderID, &message.Content, &message.Status, &message.CreatedAt)
+		var editedAt sql.NullTime
+		var replyToMsgID sql.NullInt64
+		err := rows.Scan(&message.ID, &message.ConversationID, &message.SenderID, &message.Content, &message.Status,
+			&message.IsDeleted, &message.DeletedForEveryone, &message.IsEdited, &editedAt, &replyToMsgID, &message.CreatedAt)
 		if err != nil {
 			log.Printf("Error scanning message: %v", err)
 			continue
 		}
+		
+		if editedAt.Valid {
+			message.EditedAt = &editedAt.Time
+		}
+		if replyToMsgID.Valid {
+			msgID := int(replyToMsgID.Int64)
+			message.ReplyToMessageID = &msgID
+			
+			// Optionally fetch the replied-to message
+			var repliedMsg models.Message
+			err = database.DB.QueryRow(`
+				SELECT id, conversation_id, sender_id, content, created_at
+				FROM messages WHERE id = ?`, msgID,
+			).Scan(&repliedMsg.ID, &repliedMsg.ConversationID, &repliedMsg.SenderID, &repliedMsg.Content, &repliedMsg.CreatedAt)
+			if err == nil {
+				message.ReplyToMessage = &repliedMsg
+			}
+		}
+		
 		messages = append(messages, message)
 	}
 
@@ -570,4 +619,188 @@ func GetTypingStatus(w http.ResponseWriter, r *http.Request) {
 		"is_typing": isTyping,
 		"user_id":   friendID,
 	})
+}
+
+// DeleteMessage deletes a message (for me or for everyone)
+func DeleteMessage(w http.ResponseWriter, r *http.Request) {
+	if r.Method != "DELETE" && r.Method != "POST" {
+		RespondWithError(w, http.StatusMethodNotAllowed, "Method not allowed")
+		return
+	}
+
+	userID, ok := r.Context().Value("userID").(int)
+	if !ok {
+		RespondWithError(w, http.StatusUnauthorized, "Unauthorized")
+		return
+	}
+
+	var req models.DeleteMessageRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		RespondWithError(w, http.StatusBadRequest, "Invalid request body")
+		return
+	}
+
+	// Verify user owns the message
+	var senderID int
+	err := database.DB.QueryRow(`
+		SELECT sender_id FROM messages WHERE id = ?`, req.MessageID,
+	).Scan(&senderID)
+
+	if err == sql.ErrNoRows {
+		RespondWithError(w, http.StatusNotFound, "Message not found")
+		return
+	} else if err != nil {
+		log.Printf("Error fetching message: %v", err)
+		RespondWithError(w, http.StatusInternalServerError, "Failed to fetch message")
+		return
+	}
+
+	if senderID != userID {
+		RespondWithError(w, http.StatusForbidden, "You can only delete your own messages")
+		return
+	}
+
+	// Check if message is within edit time frame (15 minutes for delete for everyone)
+	if req.DeleteForEveryone {
+		var createdAt time.Time
+		err = database.DB.QueryRow(`
+			SELECT created_at FROM messages WHERE id = ?`, req.MessageID,
+		).Scan(&createdAt)
+
+		if err != nil {
+			log.Printf("Error checking message time: %v", err)
+			RespondWithError(w, http.StatusInternalServerError, "Failed to verify message")
+			return
+		}
+
+		timeSinceCreation := time.Since(createdAt)
+		if timeSinceCreation > 15*time.Minute {
+			RespondWithError(w, http.StatusBadRequest, "Can only delete for everyone within 15 minutes")
+			return
+		}
+
+		// Delete for everyone
+		_, err = database.DB.Exec(`
+			UPDATE messages 
+			SET is_deleted = TRUE, deleted_for_everyone = TRUE, content = 'This message was deleted'
+			WHERE id = ?`, req.MessageID,
+		)
+	} else {
+		// Delete for me only
+		_, err = database.DB.Exec(`
+			UPDATE messages 
+			SET is_deleted = TRUE
+			WHERE id = ?`, req.MessageID,
+		)
+	}
+
+	if err != nil {
+		log.Printf("Error deleting message: %v", err)
+		RespondWithError(w, http.StatusInternalServerError, "Failed to delete message")
+		return
+	}
+
+	RespondWithJSON(w, http.StatusOK, map[string]interface{}{
+		"message":             "Message deleted successfully",
+		"delete_for_everyone": req.DeleteForEveryone,
+	})
+}
+
+// EditMessage edits a message within the time frame
+func EditMessage(w http.ResponseWriter, r *http.Request) {
+	if r.Method != "PUT" && r.Method != "POST" {
+		RespondWithError(w, http.StatusMethodNotAllowed, "Method not allowed")
+		return
+	}
+
+	userID, ok := r.Context().Value("userID").(int)
+	if !ok {
+		RespondWithError(w, http.StatusUnauthorized, "Unauthorized")
+		return
+	}
+
+	var req models.EditMessageRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		RespondWithError(w, http.StatusBadRequest, "Invalid request body")
+		return
+	}
+
+	if req.NewContent == "" {
+		RespondWithError(w, http.StatusBadRequest, "Message content cannot be empty")
+		return
+	}
+
+	// Verify user owns the message and check time
+	var senderID int
+	var createdAt time.Time
+	var isDeleted bool
+	err := database.DB.QueryRow(`
+		SELECT sender_id, created_at, is_deleted FROM messages WHERE id = ?`, req.MessageID,
+	).Scan(&senderID, &createdAt, &isDeleted)
+
+	if err == sql.ErrNoRows {
+		RespondWithError(w, http.StatusNotFound, "Message not found")
+		return
+	} else if err != nil {
+		log.Printf("Error fetching message: %v", err)
+		RespondWithError(w, http.StatusInternalServerError, "Failed to fetch message")
+		return
+	}
+
+	if senderID != userID {
+		RespondWithError(w, http.StatusForbidden, "You can only edit your own messages")
+		return
+	}
+
+	if isDeleted {
+		RespondWithError(w, http.StatusBadRequest, "Cannot edit a deleted message")
+		return
+	}
+
+	// Check if message is within edit time frame (15 minutes)
+	timeSinceCreation := time.Since(createdAt)
+	if timeSinceCreation > 15*time.Minute {
+		RespondWithError(w, http.StatusBadRequest, "Can only edit messages within 15 minutes of sending")
+		return
+	}
+
+	// Update message
+	_, err = database.DB.Exec(`
+		UPDATE messages 
+		SET content = ?, is_edited = TRUE, edited_at = CURRENT_TIMESTAMP
+		WHERE id = ?`, req.NewContent, req.MessageID,
+	)
+
+	if err != nil {
+		log.Printf("Error editing message: %v", err)
+		RespondWithError(w, http.StatusInternalServerError, "Failed to edit message")
+		return
+	}
+
+	// Fetch updated message
+	var message models.Message
+	var editedAt sql.NullTime
+	var replyToMsgID sql.NullInt64
+	err = database.DB.QueryRow(`
+		SELECT id, conversation_id, sender_id, content, status, is_deleted, deleted_for_everyone,
+		       is_edited, edited_at, reply_to_message_id, created_at
+		FROM messages WHERE id = ?`, req.MessageID,
+	).Scan(&message.ID, &message.ConversationID, &message.SenderID, &message.Content, &message.Status,
+		&message.IsDeleted, &message.DeletedForEveryone, &message.IsEdited, &editedAt, &replyToMsgID, &message.CreatedAt)
+
+	if err != nil {
+		log.Printf("Error fetching updated message: %v", err)
+		RespondWithError(w, http.StatusInternalServerError, "Failed to fetch updated message")
+		return
+	}
+
+	if editedAt.Valid {
+		message.EditedAt = &editedAt.Time
+	}
+	if replyToMsgID.Valid {
+		msgID := int(replyToMsgID.Int64)
+		message.ReplyToMessageID = &msgID
+	}
+
+	RespondWithJSON(w, http.StatusOK, models.MessageResponse{Message: message})
 }

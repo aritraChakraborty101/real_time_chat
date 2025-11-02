@@ -21,6 +21,9 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ friend: propFriend, onClo
   const [sending, setSending] = useState(false);
   const [isTyping, setIsTyping] = useState(false);
   const [otherUserTyping, setOtherUserTyping] = useState(false);
+  const [replyToMessage, setReplyToMessage] = useState<Message | null>(null);
+  const [editingMessage, setEditingMessage] = useState<Message | null>(null);
+  const [editContent, setEditContent] = useState('');
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const currentUser = authService.getCurrentUser();
@@ -122,7 +125,7 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ friend: propFriend, onClo
   const handleSendMessage = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    if (!newMessage.trim() || sending || !friend) return;
+    if ((!newMessage.trim() && !editingMessage) || sending || !friend) return;
 
     // Clear typing indicator
     if (typingTimeoutRef.current) {
@@ -137,14 +140,73 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ friend: propFriend, onClo
 
     setSending(true);
     try {
-      await messageService.sendMessage(friend.id, newMessage.trim());
-      setNewMessage('');
+      if (editingMessage) {
+        // Edit existing message
+        await messageService.editMessage(editingMessage.id, editContent);
+        setEditingMessage(null);
+        setEditContent('');
+      } else {
+        // Send new message
+        await messageService.sendMessage(friend.id, newMessage.trim(), replyToMessage?.id);
+        setNewMessage('');
+        setReplyToMessage(null);
+      }
       await loadMessages();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to send message');
     } finally {
       setSending(false);
     }
+  };
+
+  const handleDeleteMessage = async (messageId: number, deleteForEveryone: boolean) => {
+    if (!window.confirm(deleteForEveryone ? 
+      'Delete this message for everyone? This cannot be undone.' : 
+      'Delete this message for you?')) {
+      return;
+    }
+
+    try {
+      await messageService.deleteMessage(messageId, deleteForEveryone);
+      await loadMessages();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to delete message');
+    }
+  };
+
+  const handleEditMessage = (message: Message) => {
+    setEditingMessage(message);
+    setEditContent(message.content);
+    setReplyToMessage(null);
+  };
+
+  const handleReplyToMessage = (message: Message) => {
+    setReplyToMessage(message);
+    setEditingMessage(null);
+  };
+
+  const cancelEdit = () => {
+    setEditingMessage(null);
+    setEditContent('');
+  };
+
+  const cancelReply = () => {
+    setReplyToMessage(null);
+  };
+
+  const canEditMessage = (message: Message): boolean => {
+    if (message.sender_id !== currentUser?.id) return false;
+    if (message.is_deleted) return false;
+    
+    const createdAt = new Date(message.created_at);
+    const now = new Date();
+    const diffMinutes = (now.getTime() - createdAt.getTime()) / (1000 * 60);
+    
+    return diffMinutes < 15; // Can edit within 15 minutes
+  };
+
+  const canDeleteMessage = (message: Message): boolean => {
+    return message.sender_id === currentUser?.id && !message.is_deleted;
   };
 
   const handleBack = () => {
@@ -301,27 +363,124 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ friend: propFriend, onClo
           <>
             {messages.map((message) => {
               const isOwnMessage = message.sender_id === currentUser?.id;
+              const isDeleted = message.is_deleted || message.deleted_for_everyone;
+              
               return (
                 <div
                   key={message.id}
-                  className={`flex ${isOwnMessage ? 'justify-end' : 'justify-start'}`}
+                  className={`flex flex-col ${isOwnMessage ? 'items-end' : 'items-start'}`}
                 >
-                  <div
-                    className={`max-w-xs lg:max-w-md px-4 py-2 rounded-lg ${
-                      isOwnMessage
-                        ? 'bg-blue-600 text-white rounded-br-none'
-                        : 'bg-gray-200 dark:bg-gray-700 text-gray-900 dark:text-white rounded-bl-none'
-                    }`}
-                  >
-                    <p className="break-words">{message.content}</p>
-                    <p
-                      className={`text-xs mt-1 flex items-center ${
-                        isOwnMessage ? 'text-blue-100' : 'text-gray-500 dark:text-gray-400'
-                      }`}
-                    >
-                      <span>{formatTime(message.created_at)}</span>
-                      {isOwnMessage && renderMessageStatus(message.status)}
-                    </p>
+                  <div className={`max-w-xs lg:max-w-md group`}>
+                    {/* Reply quote if this message is a reply */}
+                    {message.reply_to_message && (
+                      <div className={`text-xs px-3 py-1 mb-1 rounded border-l-2 ${
+                        isOwnMessage
+                          ? 'bg-blue-500 text-white border-blue-300'
+                          : 'bg-gray-300 dark:bg-gray-600 text-gray-700 dark:text-gray-300 border-gray-400'
+                      }`}>
+                        <p className="font-semibold">Replying to:</p>
+                        <p className="truncate">{message.reply_to_message.content}</p>
+                      </div>
+                    )}
+                    
+                    {/* Message bubble */}
+                    <div className="relative">
+                      <div
+                        className={`px-4 py-2 rounded-lg ${
+                          isOwnMessage
+                            ? 'bg-blue-600 text-white rounded-br-none'
+                            : 'bg-gray-200 dark:bg-gray-700 text-gray-900 dark:text-white rounded-bl-none'
+                        } ${isDeleted ? 'italic opacity-60' : ''}`}
+                      >
+                        <p className="break-words">
+                          {isDeleted ? (
+                            message.deleted_for_everyone ? 
+                              '🚫 This message was deleted' : 
+                              '🚫 You deleted this message'
+                          ) : (
+                            message.content
+                          )}
+                        </p>
+                        <p
+                          className={`text-xs mt-1 flex items-center justify-between ${
+                            isOwnMessage ? 'text-blue-100' : 'text-gray-500 dark:text-gray-400'
+                          }`}
+                        >
+                          <span>
+                            {formatTime(message.created_at)}
+                            {message.is_edited && <span className="ml-1">(edited)</span>}
+                          </span>
+                          {isOwnMessage && !isDeleted && renderMessageStatus(message.status)}
+                        </p>
+                      </div>
+                      
+                      {/* Context menu for own messages */}
+                      {isOwnMessage && !isDeleted && (
+                        <div className="absolute right-0 top-0 opacity-0 group-hover:opacity-100 transition-opacity">
+                          <div className="flex space-x-1 bg-white dark:bg-gray-800 rounded shadow-lg p-1">
+                            {canEditMessage(message) && (
+                              <button
+                                onClick={() => handleEditMessage(message)}
+                                className="p-1 hover:bg-gray-100 dark:hover:bg-gray-700 rounded"
+                                title="Edit"
+                              >
+                                <svg className="w-4 h-4 text-gray-600 dark:text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                                </svg>
+                              </button>
+                            )}
+                            <button
+                              onClick={() => handleReplyToMessage(message)}
+                              className="p-1 hover:bg-gray-100 dark:hover:bg-gray-700 rounded"
+                              title="Reply"
+                            >
+                              <svg className="w-4 h-4 text-gray-600 dark:text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6" />
+                              </svg>
+                            </button>
+                            {canDeleteMessage(message) && (
+                              <>
+                                <button
+                                  onClick={() => handleDeleteMessage(message.id, false)}
+                                  className="p-1 hover:bg-gray-100 dark:hover:bg-gray-700 rounded"
+                                  title="Delete for me"
+                                >
+                                  <svg className="w-4 h-4 text-gray-600 dark:text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                  </svg>
+                                </button>
+                                {canEditMessage(message) && (
+                                  <button
+                                    onClick={() => handleDeleteMessage(message.id, true)}
+                                    className="p-1 hover:bg-red-100 dark:hover:bg-red-900/30 rounded"
+                                    title="Delete for everyone"
+                                  >
+                                    <svg className="w-4 h-4 text-red-600 dark:text-red-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                    </svg>
+                                  </button>
+                                )}
+                              </>
+                            )}
+                          </div>
+                        </div>
+                      )}
+                      
+                      {/* Reply button for other's messages */}
+                      {!isOwnMessage && !isDeleted && (
+                        <div className="absolute left-0 top-0 opacity-0 group-hover:opacity-100 transition-opacity">
+                          <button
+                            onClick={() => handleReplyToMessage(message)}
+                            className="p-1 bg-white dark:bg-gray-800 hover:bg-gray-100 dark:hover:bg-gray-700 rounded shadow-lg"
+                            title="Reply"
+                          >
+                            <svg className="w-4 h-4 text-gray-600 dark:text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6" />
+                            </svg>
+                          </button>
+                        </div>
+                      )}
+                    </div>
                   </div>
                 </div>
               );
@@ -350,28 +509,61 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ friend: propFriend, onClo
       )}
 
       {/* Message Input */}
-      <form onSubmit={handleSendMessage} className="p-4 border-t border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800">
-        <div className="flex space-x-2">
+      <form onSubmit={handleSendMessage} className="border-t border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800">
+        {/* Reply/Edit indicator */}
+        {(replyToMessage || editingMessage) && (
+          <div className="px-4 pt-3 pb-2 border-b border-gray-200 dark:border-gray-700">
+            <div className="flex items-start justify-between bg-gray-100 dark:bg-gray-700/50 rounded p-2">
+              <div className="flex-1">
+                <p className="text-xs font-semibold text-gray-600 dark:text-gray-400">
+                  {editingMessage ? 'Editing message' : `Replying to ${friend.display_name || friend.username}`}
+                </p>
+                <p className="text-sm text-gray-700 dark:text-gray-300 truncate">
+                  {editingMessage ? editingMessage.content : replyToMessage?.content}
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={editingMessage ? cancelEdit : cancelReply}
+                className="ml-2 p-1 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
+              >
+                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+          </div>
+        )}
+        
+        <div className="p-4 flex space-x-2">
           <input
             type="text"
-            value={newMessage}
+            value={editingMessage ? editContent : newMessage}
             onChange={(e) => {
-              setNewMessage(e.target.value);
-              handleTyping();
+              if (editingMessage) {
+                setEditContent(e.target.value);
+              } else {
+                setNewMessage(e.target.value);
+                handleTyping();
+              }
             }}
-            placeholder="Type a message..."
+            placeholder={editingMessage ? "Edit message..." : "Type a message..."}
             disabled={sending}
             className="flex-1 px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400"
           />
           <button
             type="submit"
-            disabled={!newMessage.trim() || sending}
+            disabled={(editingMessage ? !editContent.trim() : !newMessage.trim()) || sending}
             className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors duration-200"
           >
             {sending ? (
               <svg className="w-5 h-5 animate-spin" fill="none" viewBox="0 0 24 24">
                 <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
                 <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+              </svg>
+            ) : editingMessage ? (
+              <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
               </svg>
             ) : (
               <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">

@@ -91,13 +91,20 @@ func createTables() error {
 		sender_id INTEGER NOT NULL,
 		content TEXT NOT NULL,
 		status TEXT DEFAULT 'sent' CHECK(status IN ('sent', 'delivered', 'read')),
+		is_deleted BOOLEAN DEFAULT FALSE,
+		deleted_for_everyone BOOLEAN DEFAULT FALSE,
+		is_edited BOOLEAN DEFAULT FALSE,
+		edited_at DATETIME,
+		reply_to_message_id INTEGER,
 		created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
 		FOREIGN KEY (conversation_id) REFERENCES conversations(id) ON DELETE CASCADE,
-		FOREIGN KEY (sender_id) REFERENCES users(id) ON DELETE CASCADE
+		FOREIGN KEY (sender_id) REFERENCES users(id) ON DELETE CASCADE,
+		FOREIGN KEY (reply_to_message_id) REFERENCES messages(id) ON DELETE SET NULL
 	);
 	CREATE INDEX IF NOT EXISTS idx_messages_conversation ON messages(conversation_id);
 	CREATE INDEX IF NOT EXISTS idx_messages_sender ON messages(sender_id);
 	CREATE INDEX IF NOT EXISTS idx_messages_created_at ON messages(created_at);
+	CREATE INDEX IF NOT EXISTS idx_messages_reply_to ON messages(reply_to_message_id);
 	`
 
 	groupsTable := `
@@ -136,13 +143,20 @@ func createTables() error {
 		sender_id INTEGER NOT NULL,
 		content TEXT NOT NULL,
 		status TEXT DEFAULT 'sent' CHECK(status IN ('sent', 'delivered', 'read')),
+		is_deleted BOOLEAN DEFAULT FALSE,
+		deleted_for_everyone BOOLEAN DEFAULT FALSE,
+		is_edited BOOLEAN DEFAULT FALSE,
+		edited_at DATETIME,
+		reply_to_message_id INTEGER,
 		created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
 		FOREIGN KEY (group_id) REFERENCES groups(id) ON DELETE CASCADE,
-		FOREIGN KEY (sender_id) REFERENCES users(id) ON DELETE CASCADE
+		FOREIGN KEY (sender_id) REFERENCES users(id) ON DELETE CASCADE,
+		FOREIGN KEY (reply_to_message_id) REFERENCES group_messages(id) ON DELETE SET NULL
 	);
 	CREATE INDEX IF NOT EXISTS idx_group_messages_group ON group_messages(group_id);
 	CREATE INDEX IF NOT EXISTS idx_group_messages_sender ON group_messages(sender_id);
 	CREATE INDEX IF NOT EXISTS idx_group_messages_created_at ON group_messages(created_at);
+	CREATE INDEX IF NOT EXISTS idx_group_messages_reply_to ON group_messages(reply_to_message_id);
 	`
 
 	_, err := DB.Exec(usersTable)

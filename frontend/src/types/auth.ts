@@ -84,6 +84,12 @@ export interface Message {
   sender_id: number;
   content: string;
   status: string; // "sent", "delivered", "read"
+  is_deleted: boolean;
+  deleted_for_everyone: boolean;
+  is_edited: boolean;
+  edited_at?: string;
+  reply_to_message_id?: number;
+  reply_to_message?: Message;
   created_at: string;
 }
 
@@ -106,6 +112,7 @@ export interface ConversationWithUser {
 export interface SendMessageRequest {
   recipient_id: number;
   content: string;
+  reply_to_message_id?: number;
 }
 
 export interface MessageResponse {
@@ -145,6 +152,12 @@ export interface GroupMessage {
   sender?: UserProfile;
   content: string;
   status: string; // "sent", "delivered", "read"
+  is_deleted: boolean;
+  deleted_for_everyone: boolean;
+  is_edited: boolean;
+  edited_at?: string;
+  reply_to_message_id?: number;
+  reply_to_message?: GroupMessage;
   created_at: string;
 }
 
@@ -195,5 +208,15 @@ export interface UpdateMessageStatusRequest {
 export interface TypingStatusResponse {
   is_typing: boolean;
   user_id: number;
+}
+
+export interface DeleteMessageRequest {
+  message_id: number;
+  delete_for_everyone: boolean;
+}
+
+export interface EditMessageRequest {
+  message_id: number;
+  new_content: string;
 }
 

@@ -1,10 +1,10 @@
-import { Message, ConversationWithUser, SendMessageRequest, MessageResponse, UpdateMessageStatusRequest, TypingStatusResponse } from '../types/auth';
+import { Message, ConversationWithUser, SendMessageRequest, MessageResponse, UpdateMessageStatusRequest, TypingStatusResponse, DeleteMessageRequest, EditMessageRequest } from '../types/auth';
 import { authService } from './authService';
 
 const API_BASE_URL = 'http://localhost:8080/api';
 
 export const messageService = {
-  async sendMessage(recipientId: number, content: string): Promise<MessageResponse> {
+  async sendMessage(recipientId: number, content: string, replyToMessageId?: number): Promise<MessageResponse> {
     const token = authService.getToken();
     
     const response = await fetch(`${API_BASE_URL}/messages/send`, {
@@ -13,7 +13,11 @@ export const messageService = {
         'Content-Type': 'application/json',
         'Authorization': `Bearer ${token}`,
       },
-      body: JSON.stringify({ recipient_id: recipientId, content } as SendMessageRequest),
+      body: JSON.stringify({ 
+        recipient_id: recipientId, 
+        content,
+        reply_to_message_id: replyToMessageId 
+      } as SendMessageRequest),
     });
 
     const responseData = await response.json();
@@ -111,6 +115,52 @@ export const messageService = {
 
     if (!response.ok) {
       throw new Error(responseData.error || 'Failed to fetch typing status');
+    }
+
+    return responseData;
+  },
+
+  async deleteMessage(messageId: number, deleteForEveryone: boolean): Promise<void> {
+    const token = authService.getToken();
+    
+    const response = await fetch(`${API_BASE_URL}/messages/delete`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`,
+      },
+      body: JSON.stringify({ 
+        message_id: messageId, 
+        delete_for_everyone: deleteForEveryone 
+      } as DeleteMessageRequest),
+    });
+
+    const responseData = await response.json();
+
+    if (!response.ok) {
+      throw new Error(responseData.error || 'Failed to delete message');
+    }
+  },
+
+  async editMessage(messageId: number, newContent: string): Promise<MessageResponse> {
+    const token = authService.getToken();
+    
+    const response = await fetch(`${API_BASE_URL}/messages/edit`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`,
+      },
+      body: JSON.stringify({ 
+        message_id: messageId, 
+        new_content: newContent 
+      } as EditMessageRequest),
+    });
+
+    const responseData = await response.json();
+
+    if (!response.ok) {
+      throw new Error(responseData.error || 'Failed to edit message');
     }
 
     return responseData;

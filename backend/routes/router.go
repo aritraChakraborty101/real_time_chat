@@ -41,6 +41,8 @@ func SetupRoutes() {
 	http.HandleFunc("/api/messages/mark-read", middleware.CORSMiddleware(middleware.AuthMiddleware(handlers.MarkConversationAsRead)))
 	http.HandleFunc("/api/messages/typing", middleware.CORSMiddleware(middleware.AuthMiddleware(handlers.UpdateTypingStatus)))
 	http.HandleFunc("/api/messages/typing-status", middleware.CORSMiddleware(middleware.AuthMiddleware(handlers.GetTypingStatus)))
+	http.HandleFunc("/api/messages/delete", middleware.CORSMiddleware(middleware.AuthMiddleware(handlers.DeleteMessage)))
+	http.HandleFunc("/api/messages/edit", middleware.CORSMiddleware(middleware.AuthMiddleware(handlers.EditMessage)))
 	
 	// Group endpoints (protected)
 	http.HandleFunc("/api/groups/create", middleware.CORSMiddleware(middleware.AuthMiddleware(handlers.CreateGroup)))

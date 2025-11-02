@@ -94,12 +94,18 @@ type ProfileResponse struct {
 }
 
 type Message struct {
-	ID             int       `json:"id"`
-	ConversationID int       `json:"conversation_id"`
-	SenderID       int       `json:"sender_id"`
-	Content        string    `json:"content"`
-	Status         string    `json:"status"` // "sent", "delivered", "read"
-	CreatedAt      time.Time `json:"created_at"`
+	ID                 int       `json:"id"`
+	ConversationID     int       `json:"conversation_id"`
+	SenderID           int       `json:"sender_id"`
+	Content            string    `json:"content"`
+	Status             string    `json:"status"` // "sent", "delivered", "read"
+	IsDeleted          bool      `json:"is_deleted"`
+	DeletedForEveryone bool      `json:"deleted_for_everyone"`
+	IsEdited           bool      `json:"is_edited"`
+	EditedAt           *time.Time `json:"edited_at,omitempty"`
+	ReplyToMessageID   *int      `json:"reply_to_message_id,omitempty"`
+	ReplyToMessage     *Message  `json:"reply_to_message,omitempty"`
+	CreatedAt          time.Time `json:"created_at"`
 }
 
 type Conversation struct {
@@ -154,13 +160,19 @@ type GroupMemberWithUser struct {
 }
 
 type GroupMessage struct {
-	ID        int       `json:"id"`
-	GroupID   int       `json:"group_id"`
-	SenderID  int       `json:"sender_id"`
-	Sender    *UserProfile `json:"sender,omitempty"`
-	Content   string    `json:"content"`
-	Status    string    `json:"status"` // "sent", "delivered", "read"
-	CreatedAt time.Time `json:"created_at"`
+	ID                 int          `json:"id"`
+	GroupID            int          `json:"group_id"`
+	SenderID           int          `json:"sender_id"`
+	Sender             *UserProfile `json:"sender,omitempty"`
+	Content            string       `json:"content"`
+	Status             string       `json:"status"` // "sent", "delivered", "read"
+	IsDeleted          bool         `json:"is_deleted"`
+	DeletedForEveryone bool         `json:"deleted_for_everyone"`
+	IsEdited           bool         `json:"is_edited"`
+	EditedAt           *time.Time   `json:"edited_at,omitempty"`
+	ReplyToMessageID   *int         `json:"reply_to_message_id,omitempty"`
+	ReplyToMessage     *GroupMessage `json:"reply_to_message,omitempty"`
+	CreatedAt          time.Time    `json:"created_at"`
 }
 
 type GroupWithDetails struct {
@@ -212,4 +224,25 @@ type TypingIndicator struct {
 type UpdateMessageStatusRequest struct {
 	MessageIDs []int  `json:"message_ids"`
 	Status     string `json:"status"` // "delivered" or "read"
+}
+
+type DeleteMessageRequest struct {
+	MessageID        int  `json:"message_id"`
+	DeleteForEveryone bool `json:"delete_for_everyone"`
+}
+
+type EditMessageRequest struct {
+	MessageID  int    `json:"message_id"`
+	NewContent string `json:"new_content"`
+}
+
+type SendMessageWithReplyRequest struct {
+	RecipientID      int    `json:"recipient_id"`
+	Content          string `json:"content"`
+	ReplyToMessageID *int   `json:"reply_to_message_id,omitempty"`
+}
+
+type SendGroupMessageWithReplyRequest struct {
+	Content          string `json:"content"`
+	ReplyToMessageID *int   `json:"reply_to_message_id,omitempty"`
 }
