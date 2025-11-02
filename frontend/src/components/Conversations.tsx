@@ -1,13 +1,13 @@
 import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { ConversationWithUser } from '../types/auth';
 import { messageService } from '../services/messageService';
-import ChatInterface from './ChatInterface';
 
 const Conversations: React.FC = () => {
+  const navigate = useNavigate();
   const [conversations, setConversations] = useState<ConversationWithUser[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
-  const [selectedConversation, setSelectedConversation] = useState<ConversationWithUser | null>(null);
 
   useEffect(() => {
     loadConversations();
@@ -25,6 +25,10 @@ const Conversations: React.FC = () => {
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleConversationClick = (conversation: ConversationWithUser) => {
+    navigate(`/dashboard/chat/${conversation.other_user.id}`);
   };
 
   const formatTime = (dateString: string) => {
@@ -81,7 +85,7 @@ const Conversations: React.FC = () => {
           {conversations.map((conversation) => (
             <div
               key={conversation.id}
-              onClick={() => setSelectedConversation(conversation)}
+              onClick={() => handleConversationClick(conversation)}
               className="flex items-center space-x-4 p-4 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors duration-200 cursor-pointer"
             >
               {/* Profile Picture */}
@@ -163,18 +167,6 @@ const Conversations: React.FC = () => {
           <p className="text-gray-500 dark:text-gray-400 mb-4">
             Start chatting with your friends from the Friends list
           </p>
-        </div>
-      )}
-
-      {/* Chat Modal */}
-      {selectedConversation && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50 p-4">
-          <div className="w-full max-w-4xl h-[80vh] bg-white dark:bg-gray-800 rounded-lg shadow-xl overflow-hidden">
-            <ChatInterface
-              friend={selectedConversation.other_user}
-              onClose={() => setSelectedConversation(null)}
-            />
-          </div>
         </div>
       )}
     </div>

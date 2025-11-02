@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { UserProfile } from '../types/auth';
 import { profileService } from '../services/profileService';
 import { authService } from '../services/authService';
-import ChatInterface from './ChatInterface';
 
 interface UserProfileViewProps {
   userId: number | string;
@@ -10,11 +10,11 @@ interface UserProfileViewProps {
 }
 
 const UserProfileView: React.FC<UserProfileViewProps> = ({ userId, onClose }) => {
+  const navigate = useNavigate();
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [actionLoading, setActionLoading] = useState(false);
-  const [showChat, setShowChat] = useState(false);
   const currentUser = authService.getCurrentUser();
 
   useEffect(() => {
@@ -94,7 +94,10 @@ const UserProfileView: React.FC<UserProfileViewProps> = ({ userId, onClose }) =>
         return (
           <div className="space-y-2">
             <button
-              onClick={() => setShowChat(true)}
+              onClick={() => {
+                onClose();
+                navigate(`/dashboard/chat/${profile.id}`);
+              }}
               className="w-full flex items-center justify-center space-x-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors duration-200 font-medium"
             >
               <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -247,15 +250,6 @@ const UserProfileView: React.FC<UserProfileViewProps> = ({ userId, onClose }) =>
           {renderFriendButton()}
         </div>
       </div>
-
-      {/* Chat Interface Modal */}
-      {showChat && profile && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50 p-4">
-          <div className="w-full max-w-4xl h-[80vh] bg-white dark:bg-gray-800 rounded-lg shadow-xl overflow-hidden">
-            <ChatInterface friend={profile} onClose={() => setShowChat(false)} />
-          </div>
-        </div>
-      )}
     </div>
   );
 };

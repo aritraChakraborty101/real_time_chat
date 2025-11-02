@@ -9,13 +9,13 @@ import FriendsList from './FriendsList';
 import FriendRequests from './FriendRequests';
 import DashboardHome from './DashboardHome';
 import Conversations from './Conversations';
+import ChatInterface from './ChatInterface';
 
 interface DashboardProps {
   onLogout: () => void;
 }
 
 const Dashboard: React.FC<DashboardProps> = ({ onLogout }) => {
-  const user = authService.getCurrentUser();
   const navigate = useNavigate();
   const location = useLocation();
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
@@ -32,7 +32,7 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout }) => {
     if (path.includes('/search')) return 'search';
     if (path.includes('/friends')) return 'friends';
     if (path.includes('/requests')) return 'requests';
-    if (path.includes('/messages')) return 'messages';
+    if (path.includes('/messages') || path.includes('/chat')) return 'messages';
     return 'dashboard';
   };
 
@@ -81,6 +81,7 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout }) => {
             <Route path="friends" element={<FriendsList />} />
             <Route path="requests" element={<FriendRequests />} />
             <Route path="messages" element={<Conversations />} />
+            <Route path="chat/:friendId" element={<ChatInterface />} />
             <Route path="*" element={<Navigate to="/dashboard" />} />
           </Routes>
         </div>

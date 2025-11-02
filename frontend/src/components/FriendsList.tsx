@@ -1,15 +1,15 @@
 import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { UserProfile } from '../types/auth';
 import { profileService } from '../services/profileService';
 import UserProfileView from './UserProfileView';
-import ChatInterface from './ChatInterface';
 
 const FriendsList: React.FC = () => {
+  const navigate = useNavigate();
   const [friends, setFriends] = useState<UserProfile[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [selectedUser, setSelectedUser] = useState<number | null>(null);
-  const [chatWithUser, setChatWithUser] = useState<UserProfile | null>(null);
 
   useEffect(() => {
     loadFriends();
@@ -35,17 +35,13 @@ const FriendsList: React.FC = () => {
 
   const handleChatClick = (e: React.MouseEvent, friend: UserProfile) => {
     e.stopPropagation();
-    setChatWithUser(friend);
+    navigate(`/dashboard/chat/${friend.id}`);
   };
 
   const closeProfile = () => {
     setSelectedUser(null);
     // Refresh friends list to update status
     loadFriends();
-  };
-
-  const closeChat = () => {
-    setChatWithUser(null);
   };
 
   if (loading) {
@@ -156,15 +152,6 @@ const FriendsList: React.FC = () => {
           userId={selectedUser}
           onClose={closeProfile}
         />
-      )}
-
-      {/* Chat Modal */}
-      {chatWithUser && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50 p-4">
-          <div className="w-full max-w-4xl h-[80vh] bg-white dark:bg-gray-800 rounded-lg shadow-xl overflow-hidden">
-            <ChatInterface friend={chatWithUser} onClose={closeChat} />
-          </div>
-        </div>
       )}
     </div>
   );
