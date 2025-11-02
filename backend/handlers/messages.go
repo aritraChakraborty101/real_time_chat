@@ -183,7 +183,8 @@ func GetConversations(w http.ResponseWriter, r *http.Request) {
 	rows, err := database.DB.Query(`
 		SELECT DISTINCT c.id, c.user1_id, c.user2_id, c.updated_at,
 			u.id, u.username, u.display_name, u.bio, u.profile_picture, u.is_verified, u.created_at,
-			m.id, m.conversation_id, m.sender_id, m.content, m.status, m.created_at
+			m.id, m.conversation_id, m.sender_id, m.content, m.status, m.created_at,
+			CASE WHEN mc.id IS NOT NULL THEN 1 ELSE 0 END as is_muted
 		FROM conversations c
 		JOIN users u ON (
 			CASE 
@@ -197,9 +198,10 @@ func GetConversations(w http.ResponseWriter, r *http.Request) {
 			ORDER BY created_at DESC 
 			LIMIT 1
 		)
+		LEFT JOIN muted_conversations mc ON mc.conversation_id = c.id AND mc.user_id = ?
 		WHERE c.user1_id = ? OR c.user2_id = ?
 		ORDER BY c.updated_at DESC`,
-		userID, userID, userID, userID,
+		userID, userID, userID, userID, userID,
 	)
 	if err != nil {
 		log.Printf("Error fetching conversations: %v", err)
@@ -215,12 +217,14 @@ func GetConversations(w http.ResponseWriter, r *http.Request) {
 		var msgID, msgConvID, msgSenderID sql.NullInt64
 		var msgContent, msgStatus sql.NullString
 		var msgCreatedAt sql.NullTime
+		var isMuted int
 
 		err := rows.Scan(
 			&conv.ID, &conv.OtherUser.ID, &conv.OtherUser.ID, &conv.UpdatedAt,
 			&conv.OtherUser.ID, &conv.OtherUser.Username, &displayName, &bio, &profilePicture,
 			&conv.OtherUser.IsVerified, &conv.OtherUser.CreatedAt,
 			&msgID, &msgConvID, &msgSenderID, &msgContent, &msgStatus, &msgCreatedAt,
+			&isMuted,
 		)
 		if err != nil {
 			log.Printf("Error scanning conversation: %v", err)
@@ -249,6 +253,7 @@ func GetConversations(w http.ResponseWriter, r *http.Request) {
 		}
 
 		conv.UnreadCount = 0 // TODO: Implement unread count
+		conv.IsMuted = isMuted == 1
 
 		conversations = append(conversations, conv)
 	}
@@ -803,4 +808,290 @@ func EditMessage(w http.ResponseWriter, r *http.Request) {
 	}
 
 	RespondWithJSON(w, http.StatusOK, models.MessageResponse{Message: message})
+}
+
+// SearchMessages searches through user's chat history
+func SearchMessages(w http.ResponseWriter, r *http.Request) {
+	if r.Method != "GET" {
+		RespondWithError(w, http.StatusMethodNotAllowed, "Method not allowed")
+		return
+	}
+
+	userID, ok := r.Context().Value("userID").(int)
+	if !ok {
+		RespondWithError(w, http.StatusUnauthorized, "Unauthorized")
+		return
+	}
+
+	query := r.URL.Query().Get("q")
+	if query == "" {
+		RespondWithError(w, http.StatusBadRequest, "Search query is required")
+		return
+	}
+
+	searchPattern := "%" + query + "%"
+
+	// Search in one-to-one messages
+	rows, err := database.DB.Query(`
+		SELECT m.id, m.conversation_id, m.sender_id, m.content, m.status, m.is_deleted, 
+		       m.deleted_for_everyone, m.is_edited, m.edited_at, m.reply_to_message_id, m.created_at,
+		       c.user1_id, c.user2_id,
+		       u.id, u.username, u.display_name, u.bio, u.profile_picture, u.is_verified, u.created_at
+		FROM messages m
+		JOIN conversations c ON m.conversation_id = c.id
+		JOIN users u ON (
+			CASE 
+				WHEN c.user1_id = ? THEN u.id = c.user2_id
+				WHEN c.user2_id = ? THEN u.id = c.user1_id
+			END
+		)
+		WHERE (c.user1_id = ? OR c.user2_id = ?)
+		AND m.content LIKE ?
+		AND m.deleted_for_everyone = FALSE
+		ORDER BY m.created_at DESC
+		LIMIT 50`,
+		userID, userID, userID, userID, searchPattern,
+	)
+	if err != nil {
+		log.Printf("Error searching messages: %v", err)
+		RespondWithError(w, http.StatusInternalServerError, "Failed to search messages")
+		return
+	}
+	defer rows.Close()
+
+	var results []models.MessageSearchResult
+	for rows.Next() {
+		var result models.MessageSearchResult
+		var editedAt sql.NullTime
+		var replyToMsgID sql.NullInt64
+		var displayName, bio, profilePicture sql.NullString
+		var user1ID, user2ID int
+
+		err := rows.Scan(
+			&result.Message.ID, &result.Message.ConversationID, &result.Message.SenderID,
+			&result.Message.Content, &result.Message.Status, &result.Message.IsDeleted,
+			&result.Message.DeletedForEveryone, &result.Message.IsEdited, &editedAt,
+			&replyToMsgID, &result.Message.CreatedAt,
+			&user1ID, &user2ID,
+			&result.OtherUser.ID, &result.OtherUser.Username, &displayName, &bio,
+			&profilePicture, &result.OtherUser.IsVerified, &result.OtherUser.CreatedAt,
+		)
+		if err != nil {
+			log.Printf("Error scanning search result: %v", err)
+			continue
+		}
+
+		result.ConversationID = result.Message.ConversationID
+
+		if editedAt.Valid {
+			result.Message.EditedAt = &editedAt.Time
+		}
+		if replyToMsgID.Valid {
+			msgID := int(replyToMsgID.Int64)
+			result.Message.ReplyToMessageID = &msgID
+		}
+		if displayName.Valid {
+			result.OtherUser.DisplayName = displayName.String
+		}
+		if bio.Valid {
+			result.OtherUser.Bio = bio.String
+		}
+		if profilePicture.Valid {
+			result.OtherUser.ProfilePicture = profilePicture.String
+		}
+
+		results = append(results, result)
+	}
+
+	// Search in group messages
+	groupRows, err := database.DB.Query(`
+		SELECT gm.id, gm.group_id, gm.sender_id, gm.content, gm.status, gm.is_deleted,
+		       gm.deleted_for_everyone, gm.is_edited, gm.edited_at, gm.reply_to_message_id, gm.created_at,
+		       g.id, g.name, g.description, g.group_picture, g.created_by, g.created_at, g.updated_at
+		FROM group_messages gm
+		JOIN groups g ON gm.group_id = g.id
+		JOIN group_members gm2 ON g.id = gm2.group_id
+		WHERE gm2.user_id = ?
+		AND gm.content LIKE ?
+		AND gm.deleted_for_everyone = FALSE
+		ORDER BY gm.created_at DESC
+		LIMIT 50`,
+		userID, searchPattern,
+	)
+	if err != nil {
+		log.Printf("Error searching group messages: %v", err)
+	} else {
+		defer groupRows.Close()
+
+		for groupRows.Next() {
+			var result models.MessageSearchResult
+			var groupMsg models.GroupMessage
+			var group models.Group
+			var editedAt sql.NullTime
+			var replyToMsgID sql.NullInt64
+			var description, groupPicture sql.NullString
+
+			err := groupRows.Scan(
+				&groupMsg.ID, &groupMsg.GroupID, &groupMsg.SenderID, &groupMsg.Content,
+				&groupMsg.Status, &groupMsg.IsDeleted, &groupMsg.DeletedForEveryone,
+				&groupMsg.IsEdited, &editedAt, &replyToMsgID, &groupMsg.CreatedAt,
+				&group.ID, &group.Name, &description, &groupPicture, &group.CreatedBy,
+				&group.CreatedAt, &group.UpdatedAt,
+			)
+			if err != nil {
+				log.Printf("Error scanning group search result: %v", err)
+				continue
+			}
+
+			// Convert GroupMessage to Message for the result
+			result.Message = models.Message{
+				ID:                 groupMsg.ID,
+				SenderID:           groupMsg.SenderID,
+				Content:            groupMsg.Content,
+				Status:             groupMsg.Status,
+				IsDeleted:          groupMsg.IsDeleted,
+				DeletedForEveryone: groupMsg.DeletedForEveryone,
+				IsEdited:           groupMsg.IsEdited,
+				CreatedAt:          groupMsg.CreatedAt,
+			}
+			result.GroupID = groupMsg.GroupID
+
+			if editedAt.Valid {
+				result.Message.EditedAt = &editedAt.Time
+			}
+			if replyToMsgID.Valid {
+				msgID := int(replyToMsgID.Int64)
+				result.Message.ReplyToMessageID = &msgID
+			}
+			if description.Valid {
+				group.Description = description.String
+			}
+			if groupPicture.Valid {
+				group.GroupPicture = groupPicture.String
+			}
+
+			result.Group = &group
+			results = append(results, result)
+		}
+	}
+
+	if results == nil {
+		results = []models.MessageSearchResult{}
+	}
+
+	RespondWithJSON(w, http.StatusOK, models.SearchMessagesResponse{Results: results})
+}
+
+// MuteConversation mutes or unmutes a conversation or group
+func MuteConversation(w http.ResponseWriter, r *http.Request) {
+	if r.Method != "POST" {
+		RespondWithError(w, http.StatusMethodNotAllowed, "Method not allowed")
+		return
+	}
+
+	userID, ok := r.Context().Value("userID").(int)
+	if !ok {
+		RespondWithError(w, http.StatusUnauthorized, "Unauthorized")
+		return
+	}
+
+	var req models.MuteConversationRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		RespondWithError(w, http.StatusBadRequest, "Invalid request body")
+		return
+	}
+
+	if req.ConversationID == 0 && req.GroupID == 0 {
+		RespondWithError(w, http.StatusBadRequest, "Either conversation_id or group_id must be provided")
+		return
+	}
+
+	if req.ConversationID != 0 && req.GroupID != 0 {
+		RespondWithError(w, http.StatusBadRequest, "Cannot specify both conversation_id and group_id")
+		return
+	}
+
+	if req.Mute {
+		// Mute the conversation/group
+		if req.ConversationID != 0 {
+			// Verify user is part of conversation
+			var exists bool
+			err := database.DB.QueryRow(`
+				SELECT EXISTS(
+					SELECT 1 FROM conversations 
+					WHERE id = ? AND (user1_id = ? OR user2_id = ?)
+				)`, req.ConversationID, userID, userID,
+			).Scan(&exists)
+
+			if err != nil || !exists {
+				RespondWithError(w, http.StatusForbidden, "Invalid conversation")
+				return
+			}
+
+			_, err = database.DB.Exec(`
+				INSERT OR IGNORE INTO muted_conversations (user_id, conversation_id) 
+				VALUES (?, ?)`,
+				userID, req.ConversationID,
+			)
+			if err != nil {
+				log.Printf("Error muting conversation: %v", err)
+				RespondWithError(w, http.StatusInternalServerError, "Failed to mute conversation")
+				return
+			}
+		} else {
+			// Verify user is member of group
+			var exists bool
+			err := database.DB.QueryRow(`
+				SELECT EXISTS(
+					SELECT 1 FROM group_members 
+					WHERE group_id = ? AND user_id = ?
+				)`, req.GroupID, userID,
+			).Scan(&exists)
+
+			if err != nil || !exists {
+				RespondWithError(w, http.StatusForbidden, "Invalid group")
+				return
+			}
+
+			_, err = database.DB.Exec(`
+				INSERT OR IGNORE INTO muted_conversations (user_id, group_id) 
+				VALUES (?, ?)`,
+				userID, req.GroupID,
+			)
+			if err != nil {
+				log.Printf("Error muting group: %v", err)
+				RespondWithError(w, http.StatusInternalServerError, "Failed to mute group")
+				return
+			}
+		}
+
+		RespondWithJSON(w, http.StatusOK, models.SuccessResponse{Message: "Muted successfully"})
+	} else {
+		// Unmute the conversation/group
+		if req.ConversationID != 0 {
+			_, err := database.DB.Exec(`
+				DELETE FROM muted_conversations 
+				WHERE user_id = ? AND conversation_id = ?`,
+				userID, req.ConversationID,
+			)
+			if err != nil {
+				log.Printf("Error unmuting conversation: %v", err)
+				RespondWithError(w, http.StatusInternalServerError, "Failed to unmute conversation")
+				return
+			}
+		} else {
+			_, err := database.DB.Exec(`
+				DELETE FROM muted_conversations 
+				WHERE user_id = ? AND group_id = ?`,
+				userID, req.GroupID,
+			)
+			if err != nil {
+				log.Printf("Error unmuting group: %v", err)
+				RespondWithError(w, http.StatusInternalServerError, "Failed to unmute group")
+				return
+			}
+		}
+
+		RespondWithJSON(w, http.StatusOK, models.SuccessResponse{Message: "Unmuted successfully"})
+	}
 }

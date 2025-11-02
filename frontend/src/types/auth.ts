@@ -107,6 +107,7 @@ export interface ConversationWithUser {
   last_message?: Message;
   unread_count: number;
   updated_at: string;
+  is_muted: boolean;
 }
 
 export interface SendMessageRequest {
@@ -117,6 +118,28 @@ export interface SendMessageRequest {
 
 export interface MessageResponse {
   message: Message;
+}
+
+export interface SearchMessagesRequest {
+  query: string;
+}
+
+export interface SearchMessagesResponse {
+  results: MessageSearchResult[];
+}
+
+export interface MessageSearchResult {
+  message: Message;
+  conversation_id?: number;
+  group_id?: number;
+  other_user?: UserProfile;
+  group?: Group;
+}
+
+export interface MuteConversationRequest {
+  conversation_id?: number;
+  group_id?: number;
+  mute: boolean;
 }
 
 export interface Group {
@@ -173,6 +196,7 @@ export interface GroupWithDetails {
   user_role?: string;
   created_at: string;
   updated_at: string;
+  is_muted: boolean;
 }
 
 export interface CreateGroupRequest {

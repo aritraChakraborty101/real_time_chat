@@ -84,6 +84,23 @@ func createTables() error {
 	CREATE INDEX IF NOT EXISTS idx_conversations_user2 ON conversations(user2_id);
 	`
 
+	mutedConversationsTable := `
+	CREATE TABLE IF NOT EXISTS muted_conversations (
+		id INTEGER PRIMARY KEY AUTOINCREMENT,
+		user_id INTEGER NOT NULL,
+		conversation_id INTEGER,
+		group_id INTEGER,
+		muted_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+		FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+		FOREIGN KEY (conversation_id) REFERENCES conversations(id) ON DELETE CASCADE,
+		FOREIGN KEY (group_id) REFERENCES groups(id) ON DELETE CASCADE,
+		CHECK((conversation_id IS NOT NULL AND group_id IS NULL) OR (conversation_id IS NULL AND group_id IS NOT NULL)),
+		UNIQUE(user_id, conversation_id, group_id)
+	);
+	CREATE INDEX IF NOT EXISTS idx_muted_user_conversation ON muted_conversations(user_id, conversation_id);
+	CREATE INDEX IF NOT EXISTS idx_muted_user_group ON muted_conversations(user_id, group_id);
+	`
+
 	messagesTable := `
 	CREATE TABLE IF NOT EXISTS messages (
 		id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -105,6 +122,7 @@ func createTables() error {
 	CREATE INDEX IF NOT EXISTS idx_messages_sender ON messages(sender_id);
 	CREATE INDEX IF NOT EXISTS idx_messages_created_at ON messages(created_at);
 	CREATE INDEX IF NOT EXISTS idx_messages_reply_to ON messages(reply_to_message_id);
+	CREATE INDEX IF NOT EXISTS idx_messages_content ON messages(content);
 	`
 
 	groupsTable := `
@@ -157,6 +175,7 @@ func createTables() error {
 	CREATE INDEX IF NOT EXISTS idx_group_messages_sender ON group_messages(sender_id);
 	CREATE INDEX IF NOT EXISTS idx_group_messages_created_at ON group_messages(created_at);
 	CREATE INDEX IF NOT EXISTS idx_group_messages_reply_to ON group_messages(reply_to_message_id);
+	CREATE INDEX IF NOT EXISTS idx_group_messages_content ON group_messages(content);
 	`
 
 	_, err := DB.Exec(usersTable)
@@ -190,6 +209,11 @@ func createTables() error {
 	}
 
 	_, err = DB.Exec(groupMessagesTable)
+	if err != nil {
+		return err
+	}
+
+	_, err = DB.Exec(mutedConversationsTable)
 	return err
 }
 

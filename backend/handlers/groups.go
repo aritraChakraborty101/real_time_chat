@@ -135,12 +135,14 @@ func GetUserGroups(w http.ResponseWriter, r *http.Request) {
 	rows, err := database.DB.Query(`
 		SELECT g.id, g.name, g.description, g.group_picture, g.created_by, g.created_at, g.updated_at,
 			   gm.role,
-			   (SELECT COUNT(*) FROM group_members WHERE group_id = g.id) as member_count
+			   (SELECT COUNT(*) FROM group_members WHERE group_id = g.id) as member_count,
+			   CASE WHEN mc.id IS NOT NULL THEN 1 ELSE 0 END as is_muted
 		FROM groups g
 		JOIN group_members gm ON g.id = gm.group_id
+		LEFT JOIN muted_conversations mc ON mc.group_id = g.id AND mc.user_id = ?
 		WHERE gm.user_id = ?
 		ORDER BY g.updated_at DESC`,
-		userID,
+		userID, userID,
 	)
 	if err != nil {
 		log.Printf("Error fetching groups: %v", err)
@@ -153,10 +155,11 @@ func GetUserGroups(w http.ResponseWriter, r *http.Request) {
 	for rows.Next() {
 		var group models.GroupWithDetails
 		var description, groupPicture sql.NullString
+		var isMuted int
 
 		err := rows.Scan(
 			&group.ID, &group.Name, &description, &groupPicture, &group.CreatedBy,
-			&group.CreatedAt, &group.UpdatedAt, &group.UserRole, &group.MemberCount,
+			&group.CreatedAt, &group.UpdatedAt, &group.UserRole, &group.MemberCount, &isMuted,
 		)
 		if err != nil {
 			log.Printf("Error scanning group: %v", err)
@@ -169,6 +172,8 @@ func GetUserGroups(w http.ResponseWriter, r *http.Request) {
 		if groupPicture.Valid {
 			group.GroupPicture = groupPicture.String
 		}
+
+		group.IsMuted = isMuted == 1
 
 		// Get last message
 		var lastMsg models.GroupMessage

@@ -122,6 +122,7 @@ type ConversationWithUser struct {
 	LastMessage    *Message    `json:"last_message,omitempty"`
 	UnreadCount    int         `json:"unread_count"`
 	UpdatedAt      time.Time   `json:"updated_at"`
+	IsMuted        bool        `json:"is_muted"`
 }
 
 type SendMessageRequest struct {
@@ -131,6 +132,28 @@ type SendMessageRequest struct {
 
 type MessageResponse struct {
 	Message Message `json:"message"`
+}
+
+type SearchMessagesRequest struct {
+	Query string `json:"query"`
+}
+
+type SearchMessagesResponse struct {
+	Results []MessageSearchResult `json:"results"`
+}
+
+type MessageSearchResult struct {
+	Message        Message     `json:"message"`
+	ConversationID int         `json:"conversation_id,omitempty"`
+	GroupID        int         `json:"group_id,omitempty"`
+	OtherUser      *UserProfile `json:"other_user,omitempty"`
+	Group          *Group       `json:"group,omitempty"`
+}
+
+type MuteConversationRequest struct {
+	ConversationID int  `json:"conversation_id,omitempty"`
+	GroupID        int  `json:"group_id,omitempty"`
+	Mute           bool `json:"mute"`
 }
 
 type Group struct {
@@ -187,6 +210,7 @@ type GroupWithDetails struct {
 	UserRole     string                `json:"user_role,omitempty"`
 	CreatedAt    time.Time             `json:"created_at"`
 	UpdatedAt    time.Time             `json:"updated_at"`
+	IsMuted      bool                  `json:"is_muted"`
 }
 
 type CreateGroupRequest struct {

@@ -1,4 +1,4 @@
-import { Message, ConversationWithUser, SendMessageRequest, MessageResponse, UpdateMessageStatusRequest, TypingStatusResponse, DeleteMessageRequest, EditMessageRequest } from '../types/auth';
+import { Message, ConversationWithUser, SendMessageRequest, MessageResponse, UpdateMessageStatusRequest, TypingStatusResponse, DeleteMessageRequest, EditMessageRequest, SearchMessagesResponse, MuteConversationRequest, SuccessResponse } from '../types/auth';
 import { authService } from './authService';
 
 const API_BASE_URL = 'http://localhost:8080/api';
@@ -161,6 +161,50 @@ export const messageService = {
 
     if (!response.ok) {
       throw new Error(responseData.error || 'Failed to edit message');
+    }
+
+    return responseData;
+  },
+
+  async searchMessages(query: string): Promise<SearchMessagesResponse> {
+    const token = authService.getToken();
+    
+    const response = await fetch(`${API_BASE_URL}/messages/search?q=${encodeURIComponent(query)}`, {
+      method: 'GET',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+      },
+    });
+
+    const responseData = await response.json();
+
+    if (!response.ok) {
+      throw new Error(responseData.error || 'Failed to search messages');
+    }
+
+    return responseData;
+  },
+
+  async muteConversation(conversationId?: number, groupId?: number, mute: boolean = true): Promise<SuccessResponse> {
+    const token = authService.getToken();
+    
+    const response = await fetch(`${API_BASE_URL}/messages/mute`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`,
+      },
+      body: JSON.stringify({ 
+        conversation_id: conversationId,
+        group_id: groupId,
+        mute 
+      } as MuteConversationRequest),
+    });
+
+    const responseData = await response.json();
+
+    if (!response.ok) {
+      throw new Error(responseData.error || 'Failed to mute conversation');
     }
 
     return responseData;
