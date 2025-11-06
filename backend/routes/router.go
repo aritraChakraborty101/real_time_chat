@@ -26,6 +26,10 @@ func SetupRoutes() {
 	http.HandleFunc("/api/profile/user", middleware.CORSMiddleware(middleware.AuthMiddleware(handlers.GetUserProfile)))
 	http.HandleFunc("/api/profile/search", middleware.CORSMiddleware(middleware.AuthMiddleware(handlers.SearchUsers)))
 	
+	// Privacy settings endpoints (protected)
+	http.HandleFunc("/api/privacy/settings", middleware.CORSMiddleware(middleware.AuthMiddleware(handlers.GetPrivacySettings)))
+	http.HandleFunc("/api/privacy/update", middleware.CORSMiddleware(middleware.AuthMiddleware(handlers.UpdatePrivacySettings)))
+	
 	// Friend endpoints (protected)
 	http.HandleFunc("/api/friends", middleware.CORSMiddleware(middleware.AuthMiddleware(handlers.GetFriends)))
 	http.HandleFunc("/api/friends/requests", middleware.CORSMiddleware(middleware.AuthMiddleware(handlers.GetFriendRequests)))

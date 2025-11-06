@@ -50,6 +50,19 @@ func createTables() error {
 	CREATE INDEX IF NOT EXISTS idx_users_reset_token ON users(reset_token);
 	`
 
+	privacySettingsTable := `
+	CREATE TABLE IF NOT EXISTS privacy_settings (
+		id INTEGER PRIMARY KEY AUTOINCREMENT,
+		user_id INTEGER UNIQUE NOT NULL,
+		profile_picture_visibility TEXT DEFAULT 'everyone' CHECK(profile_picture_visibility IN ('everyone', 'friends', 'nobody')),
+		last_seen_visibility TEXT DEFAULT 'everyone' CHECK(last_seen_visibility IN ('everyone', 'friends', 'nobody')),
+		created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+		updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+		FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+	);
+	CREATE INDEX IF NOT EXISTS idx_privacy_settings_user_id ON privacy_settings(user_id);
+	`
+
 	friendshipsTable := `
 	CREATE TABLE IF NOT EXISTS friendships (
 		id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -214,6 +227,11 @@ func createTables() error {
 	}
 
 	_, err = DB.Exec(mutedConversationsTable)
+	if err != nil {
+		return err
+	}
+
+	_, err = DB.Exec(privacySettingsTable)
 	return err
 }
 

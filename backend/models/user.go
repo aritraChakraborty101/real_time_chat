@@ -270,3 +270,17 @@ type SendGroupMessageWithReplyRequest struct {
 	Content          string `json:"content"`
 	ReplyToMessageID *int   `json:"reply_to_message_id,omitempty"`
 }
+
+type PrivacySettings struct {
+	ID                       int       `json:"id"`
+	UserID                   int       `json:"user_id"`
+	ProfilePictureVisibility string    `json:"profile_picture_visibility"`
+	LastSeenVisibility       string    `json:"last_seen_visibility"`
+	CreatedAt                time.Time `json:"created_at"`
+	UpdatedAt                time.Time `json:"updated_at"`
+}
+
+type UpdatePrivacySettingsRequest struct {
+	ProfilePictureVisibility string `json:"profile_picture_visibility"`
+	LastSeenVisibility       string `json:"last_seen_visibility"`
+}

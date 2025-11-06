@@ -3,6 +3,7 @@ import { authService } from '../services/authService';
 import { useTheme } from '../context/ThemeContext';
 import ChangePassword from './ChangePassword';
 import EditProfile from './EditProfile';
+import PrivacySettingsPanel from './PrivacySettingsPanel';
 
 interface SettingsPanelProps {
   isOpen: boolean;
@@ -15,6 +16,7 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({ isOpen, onClose, onLogout
   const { isDarkMode, toggleTheme } = useTheme();
   const [showChangePassword, setShowChangePassword] = useState(false);
   const [showEditProfile, setShowEditProfile] = useState(false);
+  const [showPrivacySettings, setShowPrivacySettings] = useState(false);
 
   const handleLogout = () => {
     authService.logout();
@@ -186,7 +188,10 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({ isOpen, onClose, onLogout
               Privacy & Security
             </h3>
             <div className="space-y-2">
-              <button className="w-full flex items-center justify-between p-4 bg-gray-50 dark:bg-gray-700/50 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors duration-200">
+              <button
+                onClick={() => setShowPrivacySettings(true)}
+                className="w-full flex items-center justify-between p-4 bg-gray-50 dark:bg-gray-700/50 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors duration-200"
+              >
                 <div className="flex items-center space-x-3">
                   <div className="w-10 h-10 bg-green-100 dark:bg-green-900/30 rounded-lg flex items-center justify-center">
                     <svg className="w-5 h-5 text-green-600 dark:text-green-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -256,6 +261,13 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({ isOpen, onClose, onLogout
             onClose={() => setShowEditProfile(false)}
             onUpdate={handleProfileUpdate}
           />
+        </div>
+      )}
+
+      {/* Privacy Settings Modal */}
+      {showPrivacySettings && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-[60]">
+          <PrivacySettingsPanel onClose={() => setShowPrivacySettings(false)} />
         </div>
       )}
     </>

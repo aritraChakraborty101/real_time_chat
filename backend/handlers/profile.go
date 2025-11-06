@@ -267,6 +267,7 @@ func GetUserProfile(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Get friendship status if user is authenticated
+	var isFriend bool
 	if currentUserID > 0 && currentUserID != targetUserID {
 		var status string
 		err := database.DB.QueryRow(`
@@ -280,6 +281,7 @@ func GetUserProfile(w http.ResponseWriter, r *http.Request) {
 		if err == nil {
 			if status == "accepted" {
 				profile.FriendStatus = "friend"
+				isFriend = true
 			} else if status == "pending" {
 				// Check who requested
 				var requestedBy int
@@ -303,6 +305,38 @@ func GetUserProfile(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	// Enforce privacy settings (only if not viewing own profile)
+	if currentUserID != targetUserID {
+		var profilePicVisibility, lastSeenVisibility sql.NullString
+		err := database.DB.QueryRow(`
+			SELECT profile_picture_visibility, last_seen_visibility 
+			FROM privacy_settings 
+			WHERE user_id = ?`,
+			targetUserID,
+		).Scan(&profilePicVisibility, &lastSeenVisibility)
+
+		// Apply privacy rules
+		if err == nil || err == sql.ErrNoRows {
+			// Default to 'everyone' if no settings exist
+			ppVisibility := "everyone"
+			if profilePicVisibility.Valid {
+				ppVisibility = profilePicVisibility.String
+			}
+
+			// Check profile picture visibility
+			shouldHideProfilePicture := false
+			if ppVisibility == "nobody" {
+				shouldHideProfilePicture = true
+			} else if ppVisibility == "friends" && !isFriend {
+				shouldHideProfilePicture = true
+			}
+
+			if shouldHideProfilePicture {
+				profile.ProfilePicture = ""
+			}
+		}
+	}
+
 	RespondWithJSON(w, http.StatusOK, models.ProfileResponse{
 		Profile: profile,
 	})
@@ -314,6 +348,9 @@ func SearchUsers(w http.ResponseWriter, r *http.Request) {
 		RespondWithError(w, http.StatusMethodNotAllowed, "Method not allowed")
 		return
 	}
+
+	// Get current user ID from context (if authenticated)
+	currentUserID, _ := r.Context().Value("userID").(int)
 
 	query := r.URL.Query().Get("q")
 	if query == "" {
@@ -362,6 +399,43 @@ func SearchUsers(w http.ResponseWriter, r *http.Request) {
 		}
 		if profilePicture.Valid {
 			user.ProfilePicture = profilePicture.String
+		}
+
+		// Enforce privacy settings
+		if currentUserID != user.ID {
+			// Check if users are friends
+			var isFriend bool
+			var status string
+			err := database.DB.QueryRow(`
+				SELECT status FROM friendships 
+				WHERE ((user_id = ? AND friend_id = ?) OR (user_id = ? AND friend_id = ?))
+				AND status = 'accepted'
+				LIMIT 1`,
+				currentUserID, user.ID, user.ID, currentUserID,
+			).Scan(&status)
+			
+			if err == nil && status == "accepted" {
+				isFriend = true
+			}
+
+			// Get privacy settings
+			var profilePicVisibility sql.NullString
+			database.DB.QueryRow(`
+				SELECT profile_picture_visibility 
+				FROM privacy_settings 
+				WHERE user_id = ?`,
+				user.ID,
+			).Scan(&profilePicVisibility)
+
+			// Apply privacy rules
+			ppVisibility := "everyone"
+			if profilePicVisibility.Valid {
+				ppVisibility = profilePicVisibility.String
+			}
+
+			if ppVisibility == "nobody" || (ppVisibility == "friends" && !isFriend) {
+				user.ProfilePicture = ""
+			}
 		}
 
 		users = append(users, user)
